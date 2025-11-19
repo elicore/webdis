@@ -1,0 +1,19 @@
+[package]
+name = "webdis"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["ws"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+config = "0.13"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+deadpool-redis = "0.14"
+ipnet = "2.9"
+futures = "0.3"
+tokio-stream = "0.1"
