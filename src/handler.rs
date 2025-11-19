@@ -31,34 +31,41 @@ pub async fn handle_options() -> Response {
     (StatusCode::OK, headers).into_response()
 }
 
+use axum::extract::Query;
+use std::collections::HashMap;
+
 pub async fn handle_post(
     Path(command): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     body: Bytes,
 ) -> Response {
-    process_request(command, Some(body.to_vec()), state, addr).await
+    process_request(command, params, Some(body.to_vec()), state, addr).await
 }
 
 pub async fn handle_put(
     Path(command): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     body: Bytes,
 ) -> Response {
-    process_request(command, Some(body.to_vec()), state, addr).await
+    process_request(command, params, Some(body.to_vec()), state, addr).await
 }
 
 pub async fn handle_get(
     Path(command): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Response {
-    process_request(command, None, state, addr).await
+    process_request(command, params, None, state, addr).await
 }
 
 async fn process_request(
     command: String,
+    params: HashMap<String, String>,
     body: Option<Vec<u8>>,
     state: Arc<AppState>,
     addr: SocketAddr,
@@ -87,27 +94,39 @@ async fn process_request(
     let mut cmd_name = parts[0];
     let mut args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
 
-    // Check for extension
+    // Check for extension or query param
     let mut format = OutputFormat::Json;
+
+    // 1. Check extension
     if let Some(idx) = cmd_name.rfind('.') {
         let ext = &cmd_name[idx + 1..];
         format = OutputFormat::from_extension(ext);
         cmd_name = &cmd_name[..idx];
-    } else if let Some(last_arg) = args.last() {
-        if let Some(_idx) = last_arg.rfind('.') {
-            // Handle extension on last argument if needed
+    } else if let Some(last_arg) = args.last_mut() {
+        if let Some(idx) = last_arg.rfind('.') {
+            let ext = &last_arg[idx + 1..].to_string();
+            // Only treat as extension if it matches a known format
+            let f = OutputFormat::from_extension(ext);
+            if !matches!(f, OutputFormat::Json) || ext == "json" {
+                format = f;
+                *last_arg = last_arg[..idx].to_string();
+            }
         }
+    }
+
+    // 2. Check query param (overrides extension if present, or maybe fallback? Webdis C seems to prefer extension)
+    // Let's allow query param to override for now if extension didn't change it from default,
+    // or if we want to support ?type=raw explicitly.
+    if let Some(type_param) = params.get("type") {
+        // Map type param to format
+        // "raw" -> Raw, "json" -> Json, etc.
+        // We can reuse from_extension for simple mapping
+        format = OutputFormat::from_extension(type_param);
     }
 
     // Append body as the last argument if present
     if let Some(body_bytes) = body {
         if !body_bytes.is_empty() {
-            // We need to handle binary data.
-            // For now, assuming UTF-8 for simplicity in args, but Redis args are binary.
-            // The redis crate's `arg` method takes `ToRedisArgs`.
-            // We should probably keep args as Vec<Vec<u8>> to support binary.
-            // But `parts` comes from URL which is string.
-            // So we convert URL parts to bytes, and append body bytes.
             args.push(String::from_utf8_lossy(&body_bytes).to_string());
         }
     }
