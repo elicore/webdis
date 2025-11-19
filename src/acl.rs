@@ -7,7 +7,7 @@ pub struct Acl {
 
 struct AclRule {
     ip_subnet: Option<ipnet::IpNet>,
-    // basic_auth: Option<String>, // TODO: Implement Basic Auth
+    basic_auth: Option<String>,
     enabled: Vec<String>,
     disabled: Vec<String>,
 }
@@ -20,6 +20,7 @@ impl Acl {
                 let ip_subnet = c.ip.and_then(|ip| ip.parse().ok());
                 rules.push(AclRule {
                     ip_subnet,
+                    basic_auth: c.http_basic_auth,
                     enabled: c.enabled.unwrap_or_default(),
                     disabled: c.disabled.unwrap_or_default(),
                 });
@@ -28,7 +29,7 @@ impl Acl {
         Self { rules }
     }
 
-    pub fn check(&self, ip: IpAddr, command: &str) -> bool {
+    pub fn check(&self, ip: IpAddr, command: &str, auth_header: Option<&str>) -> bool {
         if self.rules.is_empty() {
             return true; // No ACLs means everything is allowed (default)
         }
@@ -38,9 +39,33 @@ impl Acl {
                                 // "All commands being enabled by default"
 
         for rule in &self.rules {
-            let ip_match = rule.ip_subnet.map(|net| net.contains(&ip)).unwrap_or(true);
+            let mut matches = true;
 
-            if ip_match {
+            // Check IP
+            if let Some(subnet) = &rule.ip_subnet {
+                if !subnet.contains(&ip) {
+                    matches = false;
+                }
+            }
+
+            // Check Basic Auth
+            if let Some(required_auth) = &rule.basic_auth {
+                matches = false; // Default to no match if auth is required
+                if let Some(auth_val) = auth_header {
+                    if let Some(stripped) = auth_val.strip_prefix("Basic ") {
+                        use base64::{engine::general_purpose, Engine as _};
+                        if let Ok(decoded) = general_purpose::STANDARD.decode(stripped) {
+                            if let Ok(creds) = String::from_utf8(decoded) {
+                                if &creds == required_auth {
+                                    matches = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if matches {
                 // Check disabled first
                 for disabled_cmd in &rule.disabled {
                     if disabled_cmd == "*" || disabled_cmd.eq_ignore_ascii_case(command) {

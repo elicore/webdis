@@ -39,9 +39,22 @@ pub async fn handle_post(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    process_request(command, params, Some(body.to_vec()), state, addr).await
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+    process_request(
+        command,
+        params,
+        Some(body.to_vec()),
+        state,
+        addr,
+        auth_header,
+    )
+    .await
 }
 
 pub async fn handle_put(
@@ -49,9 +62,22 @@ pub async fn handle_put(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    process_request(command, params, Some(body.to_vec()), state, addr).await
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+    process_request(
+        command,
+        params,
+        Some(body.to_vec()),
+        state,
+        addr,
+        auth_header,
+    )
+    .await
 }
 
 pub async fn handle_get(
@@ -59,8 +85,13 @@ pub async fn handle_get(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Response {
-    process_request(command, params, None, state, addr).await
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+    process_request(command, params, None, state, addr, auth_header).await
 }
 
 async fn process_request(
@@ -69,6 +100,7 @@ async fn process_request(
     body: Option<Vec<u8>>,
     state: Arc<AppState>,
     addr: SocketAddr,
+    auth_header: Option<String>,
 ) -> Response {
     let mut conn = match state.pool.get().await {
         Ok(conn) => conn,
@@ -132,7 +164,7 @@ async fn process_request(
     }
 
     // Check ACL
-    if !state.acl.check(addr.ip(), cmd_name) {
+    if !state.acl.check(addr.ip(), cmd_name, auth_header.as_deref()) {
         return (StatusCode::FORBIDDEN, Json(json!({"error": "Forbidden"}))).into_response();
     }
 
