@@ -9,27 +9,37 @@ jobs:
       fail-fast: false  # don't cancel other jobs in the matrix if one fails
       matrix:
         include:
-          - runner: ubuntu-20.04
+          # Keep existing Ubuntu versions for compatibility testing
+          - runner: ubuntu-24.04
             container: ubuntu:20.04
             os_name: ubuntu-20.04
-          - runner: ubuntu-20.04
+          - runner: ubuntu-24.04
             container: ubuntu:22.04
             os_name: ubuntu-22.04
-          - runner: ubuntu-20.04
+          - runner: ubuntu-24.04
             container: ubuntu:24.04
             os_name: ubuntu-24.04
-          - runner: ubuntu-20.04
+          # Add latest Ubuntu version
+          - runner: ubuntu-24.04
+            container: ubuntu:25.04
+            os_name: ubuntu-25.04
+          # Keep existing Red Hat versions
+          - runner: ubuntu-24.04
             container: redhat/ubi8:8.8
             os_name: redhat-8.8
-          - runner: ubuntu-20.04
+          - runner: ubuntu-24.04
             container: redhat/ubi9:9.2
             os_name: redhat-9.2
+          # Add latest Red Hat UBI version
+          - runner: ubuntu-24.04
+            container: redhat/ubi10:10.1
+            os_name: redhat-10.1
 
     runs-on: ${{ matrix.runner }}
 
     services:
       redis:
-        image: redis:7.0.12-alpine  # Docker Hub image used as a sidecar
+        image: redis:8.0-alpine  # Updated to latest Redis version
 
     # run each job in the container specified (ignored for macOS runners that don't use containers)
     container:
@@ -38,50 +48,41 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Fetch package lists and install dependencies (Ubuntu)
+    - name: Install build essentials (Ubuntu)
       if: contains(matrix.os_name, 'ubuntu-')
       run: |
         apt-get -y update
         DEBIAN_FRONTEND=noninteractive apt-get -y --allow-unauthenticated --allow-downgrades --allow-remove-essential --allow-change-held-packages \
-          install make gcc libevent-dev libmsgpack-dev curl uuid python3 python3-pip
+          install curl build-essential
 
-      # (using `rm` + `ln` since using `alternatives` doesn't work on both UBI 8 and UBI 9)
-    - name: Install dependencies (Red Hat)
+    - name: Install build essentials (Red Hat)
       if: contains(matrix.os_name, 'redhat-')
       run: |
-          yum install -y --allowerasing make cmake gcc gcc-c++ libevent-devel git curl uuid python3.11 python3.11-pip
-          rm -f /usr/bin/python3 /usr/bin/pip3
-          ln -s $(which python3.11) /usr/bin/python3
-          ln -s $(which pip3.11) /usr/bin/pip3
+        yum install -y --allowerasing curl gcc gcc-c++ make
 
-    - name: Install msgpack-c (Red Hat)
-      if: contains(matrix.os_name, 'redhat-')
+    - name: Install Rust toolchain
       run: |
-          cd /tmp
-          curl -sLO https://github.com/msgpack/msgpack-c/releases/download/c-6.0.0/msgpack-c-6.0.0.tar.gz
-          tar -xzf msgpack-c-6.0.0.tar.gz
-          cd msgpack-c-6.0.0
-          cmake -DMSGPACK_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib64 .
-          make
-          make install
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Fix pip3 on Ubuntu 24.04
-      if: matrix.os_name == 'ubuntu-24.04'
-      run: rm -f /usr/lib/python$(python3 --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)/EXTERNALLY-MANAGED
+    - name: Verify Rust installation
+      run: |
+        . "$HOME/.cargo/env"
+        rustc --version
+        cargo --version
 
     - name: Build
-      run: make
-
-    - name: Run Webdis and test
       run: |
-        ./webdis .github/workflows/webdis-ci.json
-        sleep 2
-        ./tests/basic.py
-        ./tests/curl-tests.sh
-        pip3 --no-cache-dir install -r tests/requirements.txt
-        ./tests/ws-tests.py
+        . "$HOME/.cargo/env"
+        cargo build --release
+
+    - name: Run tests
+      run: |
+        . "$HOME/.cargo/env"
+        cargo test --release
 
     - name: Archive logs
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: webdis-${{ matrix.os_name }}.log
@@ -93,10 +94,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Keep existing macOS versions
           - runner: macos-13
             os_name: macos-13
           - runner: macos-14
             os_name: macos-14
+          # Add latest macOS version
+          - runner: macos-15
+            os_name: macos-15
 
     runs-on: ${{ matrix.runner }}
 
@@ -105,43 +110,31 @@ jobs:
 
     - name: Install dependencies
       run: |
-        rm '/usr/local/bin/2to3-3.11'
-        brew reinstall libevent curl || true
-        brew install libevent curl msgpack-c python@3.11 redis || true
-        brew link --overwrite python@3.11
-
-    - name: Set up python venv
-      run: |
-        python3.11 -m venv venv
-        source venv/bin/activate
-        pip install --upgrade pip
+        brew install redis || true
 
     - name: Set up redis hostname
       run: echo "127.0.0.1 redis" | sudo tee -a /etc/hosts
 
-    - name: Build with explicit libevent path on macOS 14
-      if: matrix.os_name == 'macos-14'
+    - name: Install Rust toolchain
       run: |
-        export CPPFLAGS="-I$(brew --prefix libevent)/include"
-        export LDFLAGS="-L$(brew --prefix libevent)/lib -levent -lpthread"
-        make
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Regular build
-      if: matrix.os_name != 'macos-14'
-      run: make
+    - name: Verify Rust installation
+      run: |
+        rustc --version
+        cargo --version
 
-    - name: Run Webdis and test
+    - name: Build
+      run: cargo build --release
+
+    - name: Run tests
       run: |
         brew services start redis
-        ./webdis .github/workflows/webdis-ci.json
-        sleep 2
-        ./tests/basic.py
-        ./tests/curl-tests.sh
-        python3.11 -m venv venv && source venv/bin/activate
-        pip3 --no-cache-dir install -r tests/requirements.txt
-        ./tests/ws-tests.py
+        cargo test --release
 
     - name: Archive logs
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: webdis-${{ matrix.os_name }}.log
