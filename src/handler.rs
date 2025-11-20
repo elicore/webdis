@@ -4,7 +4,7 @@ use crate::redis::RedisPool;
 use axum::extract::ConnectInfo;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use deadpool_redis::redis::{cmd, Value as RedisValue};
@@ -14,6 +14,21 @@ use std::sync::Arc;
 
 use crate::pubsub::PubSubManager;
 
+pub async fn handle_default_root(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+    default_root: String,
+) -> Response {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    process_request(default_root, params, None, state, addr, auth_header).await
+}
+
 pub struct AppState {
     pub pool: RedisPool,
     pub acl: Acl,
@@ -21,7 +36,8 @@ pub struct AppState {
 }
 
 use axum::body::Bytes;
-use axum::http::HeaderMap;
+// use axum::body::Bytes; // Already imported above
+// use axum::http::HeaderMap; // Already imported above
 
 pub async fn handle_options() -> Response {
     let mut headers = HeaderMap::new();
