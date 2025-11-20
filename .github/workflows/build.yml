@@ -13,33 +13,43 @@ jobs:
           - runner: ubuntu-24.04
             container: ubuntu:20.04
             os_name: ubuntu-20.04
+            redis_image: redis:8.0-alpine
           - runner: ubuntu-24.04
             container: ubuntu:22.04
             os_name: ubuntu-22.04
+            redis_image: redis:8.0-alpine
           - runner: ubuntu-24.04
             container: ubuntu:24.04
             os_name: ubuntu-24.04
+            redis_image: redis:8.0-alpine
           # Add latest Ubuntu version
           - runner: ubuntu-24.04
             container: ubuntu:25.04
             os_name: ubuntu-25.04
+            redis_image: redis:8.2-alpine
           # Keep existing Red Hat versions
           - runner: ubuntu-24.04
             container: redhat/ubi8:8.8
             os_name: redhat-8.8
+            redis_image: docker.io/redis:8.0-alpine
           - runner: ubuntu-24.04
             container: redhat/ubi9:9.2
             os_name: redhat-9.2
+            redis_image: docker.io/redis:8.0-alpine
           # Add latest Red Hat UBI version
           - runner: ubuntu-24.04
             container: redhat/ubi10:10.1
             os_name: redhat-10.1
+            redis_image: docker.io/redis:8.2-alpine
 
     runs-on: ${{ matrix.runner }}
 
     services:
+      # Make the redis sidecar image configurable in the job matrix
+      # Set `redis_image` in the matrix entries above (example: `redis:8.0-alpine`).
+      # By moving the image into the matrix, you can test different Redis versions easily.
       redis:
-        image: redis:8.0-alpine  # Updated to latest Redis version
+        image: ${{ matrix.redis_image }}
 
     # run each job in the container specified (ignored for macOS runners that don't use containers)
     container:
@@ -60,25 +70,34 @@ jobs:
       run: |
         yum install -y --allowerasing curl gcc gcc-c++ make
 
-    - name: Install Rust toolchain
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: clippy, rustfmt
 
     - name: Verify Rust installation
       run: |
-        . "$HOME/.cargo/env"
+        # `actions-rs/toolchain` already installs rustup & rustc and adds it to PATH
         rustc --version
         cargo --version
 
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/rust-toolchain*') }}
+
     - name: Build
       run: |
-        . "$HOME/.cargo/env"
         cargo build --release
 
     - name: Run tests
       run: |
-        . "$HOME/.cargo/env"
         cargo test --release
 
     - name: Archive logs
@@ -115,15 +134,26 @@ jobs:
     - name: Set up redis hostname
       run: echo "127.0.0.1 redis" | sudo tee -a /etc/hosts
 
-    - name: Install Rust toolchain
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: clippy, rustfmt
 
     - name: Verify Rust installation
       run: |
         rustc --version
         cargo --version
+
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/rust-toolchain*') }}
 
     - name: Build
       run: cargo build --release
