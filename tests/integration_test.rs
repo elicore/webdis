@@ -3,8 +3,12 @@ use std::process::{Child, Command};
 use std::time::Duration;
 use tokio::time::sleep;
 
+use std::io::Write;
+use tempfile::NamedTempFile;
+
 struct TestServer {
     process: Child,
+    _config_file: NamedTempFile,
 }
 
 impl TestServer {
@@ -16,15 +20,48 @@ impl TestServer {
             .expect("Failed to build project");
         assert!(status.success());
 
+        // Create a temporary config file
+        let mut config_file = tempfile::Builder::new()
+            .suffix(".json")
+            .tempfile()
+            .expect("Failed to create temp config file");
+
+        let config_content = r#"{
+            "redis_host": "127.0.0.1",
+            "redis_port": 6379,
+            "http_host": "127.0.0.1",
+            "http_port": 7379,
+            "database": 0,
+            "websockets": true,
+            "daemonize": false,
+            "verbosity": 5,
+            "logfile": "webdis.log",
+            "acl": [
+                {
+                    "disabled": ["DEBUG"]
+                },
+                {
+                    "http_basic_auth": "user:password",
+                    "enabled": ["DEBUG"]
+                }
+            ]
+        }"#;
+        write!(config_file, "{}", config_content).expect("Failed to write config");
+
+        let config_path = config_file.path().to_str().unwrap().to_string();
+
         let process = Command::new("target/debug/webdis")
-            .arg("webdis.json")
+            .arg(&config_path)
             .spawn()
             .expect("Failed to start webdis");
 
         // Give it a moment to start
         sleep(Duration::from_secs(2)).await;
 
-        Self { process }
+        Self {
+            process,
+            _config_file: config_file,
+        }
     }
 }
 
