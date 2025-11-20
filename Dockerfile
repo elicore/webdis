@@ -1,23 +1,50 @@
-FROM alpine:3.20.3 AS stage
-LABEL maintainer="Nicolas Favre-Felix <n.favrefelix@gmail.com>"
-LABEL org.opencontainers.image.source=https://github.com/nicolasff/webdis
+# Base stage with cargo-chef installed
+FROM rust:alpine3.20 AS chef
+RUN apk add --no-cache musl-dev openssl-dev pkgconfig make gcc
+RUN cargo install cargo-chef
+WORKDIR /app
 
-RUN apk update && apk add wget make gcc libevent-dev msgpack-c-dev musl-dev openssl-dev bsd-compat-headers jq
-RUN wget -q https://api.github.com/repos/nicolasff/webdis/tags -O /dev/stdout | jq '.[] | .name' | head -1  | sed 's/"//g' > latest
-RUN wget https://github.com/nicolasff/webdis/archive/$(cat latest).tar.gz -O webdis-latest.tar.gz
-RUN tar -xvzf webdis-latest.tar.gz
-RUN cd webdis-$(cat latest) && make && make install && make clean && make SSL=1 && cp webdis /usr/local/bin/webdis-ssl && cd ..
-RUN sed -i -e 's/"daemonize":.*true,/"daemonize": false,/g' /etc/webdis.prod.json
+# Planner stage: Computes the "recipe" (lockfile equivalent)
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# main image
-FROM alpine:3.20.3
-# Required dependencies, with versions fixing known security vulnerabilities
-RUN apk update && apk add libevent msgpack-c openssl \
-    'redis>=6.2.10' 'libssl3>=3.2.2-r1' 'libcrypto3>=3.3.2-r1' && \
-    rm -f /var/cache/apk/* /usr/bin/redis-benchmark /usr/bin/redis-cli
-COPY --from=stage /usr/local/bin/webdis /usr/local/bin/webdis-ssl /usr/local/bin/
-COPY --from=stage /etc/webdis.prod.json /etc/webdis.prod.json
-RUN echo "daemonize yes" >> /etc/redis.conf
-CMD ["/bin/sh", "-c", "/usr/bin/redis-server /etc/redis.conf && /usr/local/bin/webdis /etc/webdis.prod.json"]
+# Builder stage: Caches dependencies and builds the app
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this is the cached layer
+RUN cargo chef cook --release --recipe-path recipe.json
 
+# Build application
+COPY . .
+RUN cargo build --release
+
+# Prepare config (same as before)
+RUN sed -i 's/"daemonize": true/"daemonize": false/' webdis.prod.json && \
+    sed -i 's/"logfile": ".*"/"logfile": null/' webdis.prod.json
+
+# Runtime stage
+FROM alpine:3.20
+
+# Install runtime dependencies
+# libssl3/libgcc: Required for binary execution (dynamic linking)
+# ca-certificates: Required for TLS connections to Redis
+RUN apk add --no-cache libssl3 libgcc ca-certificates
+
+# Create a non-root user
+RUN adduser -D -g '' webdis
+
+WORKDIR /app
+
+# Copy the build artifact and config
+COPY --from=builder /app/target/release/webdis /usr/local/bin/webdis
+COPY --from=builder /app/webdis.prod.json /etc/webdis.prod.json
+
+# Use the non-root user
+USER webdis
+
+# Expose the port
 EXPOSE 7379
+
+# Run the application
+CMD ["webdis", "/etc/webdis.prod.json"]
