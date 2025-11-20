@@ -9,6 +9,7 @@ use tempfile::NamedTempFile;
 struct TestServer {
     process: Child,
     _config_file: NamedTempFile,
+    pub port: u16,
 }
 
 impl TestServer {
@@ -26,11 +27,18 @@ impl TestServer {
             .tempfile()
             .expect("Failed to create temp config file");
 
-        let config_content = r#"{
+        // Find a free port
+        let port = {
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port");
+            listener.local_addr().unwrap().port()
+        };
+
+        let config_content = serde_json::json!({
             "redis_host": "127.0.0.1",
             "redis_port": 6379,
             "http_host": "127.0.0.1",
-            "http_port": 7379,
+            "http_port": port,
             "database": 0,
             "websockets": true,
             "daemonize": false,
@@ -45,8 +53,9 @@ impl TestServer {
                     "enabled": ["DEBUG"]
                 }
             ]
-        }"#;
-        write!(config_file, "{}", config_content).expect("Failed to write config");
+        });
+
+        write!(config_file, "{}", config_content.to_string()).expect("Failed to write config");
 
         let config_path = config_file.path().to_str().unwrap().to_string();
 
@@ -61,6 +70,7 @@ impl TestServer {
         Self {
             process,
             _config_file: config_file,
+            port,
         }
     }
 }
@@ -73,12 +83,15 @@ impl Drop for TestServer {
 
 #[tokio::test]
 async fn test_basic_get_set() {
-    let _server = TestServer::new().await;
+    let server = TestServer::new().await;
     let client = Client::new();
 
     // SET
     let resp = client
-        .get("http://127.0.0.1:7379/SET/test_key/test_value")
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/test_key/test_value",
+            server.port
+        ))
         .send()
         .await
         .expect("Failed to send request");
@@ -88,7 +101,7 @@ async fn test_basic_get_set() {
 
     // GET
     let resp = client
-        .get("http://127.0.0.1:7379/GET/test_key")
+        .get(&format!("http://127.0.0.1:{}/GET/test_key", server.port))
         .send()
         .await
         .expect("Failed to send request");
@@ -99,20 +112,23 @@ async fn test_basic_get_set() {
 
 #[tokio::test]
 async fn test_json_output() {
-    let _server = TestServer::new().await;
+    let server = TestServer::new().await;
     let client = Client::new();
 
     // SET JSON
     let json_val = r#"{"a":1,"b":"c"}"#;
     let _ = client
-        .get(&format!("http://127.0.0.1:7379/SET/json_key/{}", json_val))
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/json_key/{}",
+            server.port, json_val
+        ))
         .send()
         .await
         .expect("Failed to send request");
 
     // GET JSON
     let resp = client
-        .get("http://127.0.0.1:7379/GET/json_key")
+        .get(&format!("http://127.0.0.1:{}/GET/json_key", server.port))
         .send()
         .await
         .expect("Failed to send request");
@@ -125,12 +141,15 @@ async fn test_json_output() {
 
 #[tokio::test]
 async fn test_acl_restrictions() {
-    let _server = TestServer::new().await;
+    let server = TestServer::new().await;
     let client = Client::new();
 
     // DEBUG is disabled by default in webdis.json
     let resp = client
-        .get("http://127.0.0.1:7379/DEBUG/OBJECT/test_key")
+        .get(&format!(
+            "http://127.0.0.1:{}/DEBUG/OBJECT/test_key",
+            server.port
+        ))
         .send()
         .await
         .expect("Failed to send request");
@@ -141,7 +160,10 @@ async fn test_acl_restrictions() {
     // Authenticated request should be allowed (if configured)
     // In webdis.json: "http_basic_auth": "user:password", "enabled": ["DEBUG"]
     let resp = client
-        .get("http://127.0.0.1:7379/DEBUG/OBJECT/test_key")
+        .get(&format!(
+            "http://127.0.0.1:{}/DEBUG/OBJECT/test_key",
+            server.port
+        ))
         .basic_auth("user", Some("password"))
         .send()
         .await
@@ -157,8 +179,8 @@ async fn test_websocket_commands() {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
-    let _server = TestServer::new().await;
-    let url = "ws://127.0.0.1:7379/.json";
+    let server = TestServer::new().await;
+    let url = format!("ws://127.0.0.1:{}/.json", server.port);
     let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
 
     // Send SET command
@@ -207,8 +229,8 @@ async fn test_websocket_pubsub() {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
-    let _server = TestServer::new().await;
-    let url = "ws://127.0.0.1:7379/.json";
+    let server = TestServer::new().await;
+    let url = format!("ws://127.0.0.1:{}/.json", server.port);
     let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
 
     // Subscribe
@@ -224,7 +246,10 @@ async fn test_websocket_pubsub() {
     // Publish using HTTP client
     let client = Client::new();
     client
-        .post("http://127.0.0.1:7379/PUBLISH/ws_channel")
+        .post(&format!(
+            "http://127.0.0.1:{}/PUBLISH/ws_channel",
+            server.port
+        ))
         .body("ws_message")
         .send()
         .await
