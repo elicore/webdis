@@ -4,9 +4,15 @@ use deadpool_redis::{Config, Pool, Runtime};
 pub type RedisPool = Pool;
 
 pub fn create_pool(config: &AppConfig) -> Result<RedisPool, deadpool_redis::CreatePoolError> {
+    let scheme = if config.ssl.as_ref().map(|s| s.enabled).unwrap_or(false) {
+        "rediss"
+    } else {
+        "redis"
+    };
+
     let mut cfg = Config::from_url(format!(
-        "redis://{}:{}/{}",
-        config.redis_host, config.redis_port, config.database
+        "{}://{}:{}/{}",
+        scheme, config.redis_host, config.redis_port, config.database
     ));
 
     // Configure pool size
