@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Maintainer Notes: Build and test composite action. Inputs: `arch`, `run-tests`, `qemu`, `os_name`.
+# - Uses `.github/actions/setup-rust` to perform toolchain setup and caching.
+# - Runs tests natively for host arch; cross-compiles for other arches; optionally runs tests under QEMU for aarch64.
+name: 'Build and Test'
+
+description: 'Composite action that performs repository checkout, runs setup-rust composite action, builds and tests the project.'
+
+inputs:
+  arch:
+    description: 'Target architecture for cross-compile. Set to x86_64 or aarch64 or leave empty for host.'
+    required: false
+    default: ''
+  run-tests:
+    description: 'Run tests after build (true/false).'
+    required: false
+    default: 'true'
+  qemu:
+    description: 'Whether to enable QEMU during setup (true/false).'
+    required: false
+    default: 'false'
+  runner:
+    description: 'Runner OS name (used for macOS special setup)'
+    required: false
+    default: ''
+  os_name:
+    description: 'OS name for artifact naming (e.g., ubuntu-24.04, macos-14)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    # Setup toolchain, qemu (optional) and caching via our setup-rust composite action
+    - name: Setup Rust, QEMU & cache
+      uses: ./.github/actions/setup-rust
+      with:
+        arch: ${{ inputs.arch }}
+        qemu: ${{ inputs.qemu }}
+
+    - name: Show Rust versions
+      run: |
+        rustc --version
+        cargo --version
+      shell: bash
+
+    - name: Build (cargo)
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: |
+          --release
+          ${{ inputs.arch && ("--target " + (inputs.arch == 'aarch64' && 'aarch64-unknown-linux-gnu' || 'x86_64-unknown-linux-gnu')) || '' }}
+
+    - name: Run tests (native arch)
+      if: ${{ inputs.run-tests == 'true' && inputs.arch == 'x86_64' }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --release
+
+    - name: Compile tests (cross arch; no-run)
+      if: ${{ inputs.run-tests == 'true' && inputs.arch != 'x86_64' }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: |
+          --release
+          --no-run
+          ${{ inputs.arch && ("--target " + (inputs.arch == 'aarch64' && 'aarch64-unknown-linux-gnu' || 'x86_64-unknown-linux-gnu')) || '' }}
+
+    - name: Run tests under QEMU (if enabled)
+      if: ${{ inputs.run-tests == 'true' && inputs.qemu == 'true' && inputs.arch == 'aarch64' }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: |
+          --release
+          --target aarch64-unknown-linux-gnu
+
+    - name: Archive logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: webdis-${{ inputs.os_name != '' && inputs.os_name || (inputs.arch != '' && inputs.arch || 'host') }}.log
+        path: webdis.log

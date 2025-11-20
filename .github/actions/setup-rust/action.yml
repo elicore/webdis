@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Maintainer Notes: Setup Rust toolchain, optional QEMU registration, and caches for Cargo artifacts.
+# - Inputs: `arch` (x86_64|aarch64), `qemu` (true|false), `components` (clippy, rustfmt).
+# - Use `qemu: true` when you intend to run cross-arch tests under x86-64 runners.
+name: 'Setup Rust and Cache'
+
+description: 'Composite action to setup Rust toolchain, set up QEMU (optional) and cache Cargo'
+
+author: 'webdis contributors'
+
+inputs:
+  arch:
+    description: 'Target architecture, e.g., x86_64 or aarch64'
+    required: false
+    default: ''
+  qemu:
+    description: 'Whether to register QEMU for cross-arch tests (true/false)'
+    required: false
+    default: 'false'
+  components:
+    description: 'Comma separated components for rustup (e.g., clippy, rustfmt)'
+    required: false
+    default: 'clippy, rustfmt'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup QEMU (optional)
+      if: ${{ inputs.qemu == 'true' }}
+      uses: docker/setup-qemu-action@v2
+      with:
+        platforms: linux/arm64,linux/amd64
+
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: ${{ inputs.components }}
+        target: ${{ inputs.arch == 'aarch64' && 'aarch64-unknown-linux-gnu' || inputs.arch == 'x86_64' && 'x86_64-unknown-linux-gnu' || '' }}
+
+    - name: Cargo cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ inputs.arch != '' && inputs.arch || 'host' }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/rust-toolchain*') }}

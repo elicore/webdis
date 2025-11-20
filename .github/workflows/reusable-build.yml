@@ -1,0 +1,71 @@
+## Maintainer Notes: Reusable build workflow
+## - Inputs: arch, runner, container, os_name, redis_image, run_tests
+## - Linux jobs use `container` and `services.redis` with redis_image; macOS uses brew to install redis.
+## - Prefer mapping arch to specific container entries in the caller workflow to prevent matrix explosion.
+name: Reusable Build workflow
+
+# Maintainer Notes:
+# - This is a narrow workflow used by `build.yml` to centralize build/test behavior.
+# - Inputs include `arch`, `runner`, `container`, `os_name` and `redis_image`.
+# - Linux jobs set up Redis as a service while macOS uses brew to install Redis.
+# - Use the `archive` artifact naming via os_name for cross-run identification.
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        type: string
+        required: false
+        default: ''
+      runner:
+        type: string
+        required: true
+      container:
+        type: string
+        required: false
+        default: ''
+      os_name:
+        type: string
+        required: false
+        default: ''
+      redis_image:
+        type: string
+        required: false
+        default: 'redis:8.2-alpine'
+      run_tests:
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  linux-run:
+    if: ${{ !startsWith(inputs.runner, 'macos-') }}
+    runs-on: ${{ inputs.runner }}
+    container: ${{ inputs.container && (inputs.container != '') && inputs.container || '' }}
+    services:
+      redis:
+        image: ${{ inputs.redis_image }}
+    steps:
+      - name: Build and Test (composite action)
+        uses: ./.github/actions/build
+        with:
+          arch: ${{ inputs.arch }}
+          run-tests: ${{ inputs.run_tests }}
+          qemu: ${{ inputs.arch == 'aarch64' && 'true' || 'false' }}
+          os_name: ${{ inputs.os_name }}
+
+  macos-run:
+    if: ${{ startsWith(inputs.runner, 'macos-') }}
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Setup redis on macOS
+        run: |
+          brew install redis || true
+          echo "127.0.0.1 redis" | sudo tee -a /etc/hosts
+
+      - name: Build and Test (composite action)
+        uses: ./.github/actions/build
+        with:
+          arch: ${{ inputs.arch }}
+          run-tests: ${{ inputs.run_tests }}
+          os_name: ${{ inputs.os_name }}
