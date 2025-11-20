@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nicolasff/webdis/raw/main/webdis.schema.json",
+  "title": "Webdis Configuration",
+  "description": "Schema describing the supported configuration options for the Rust Webdis server.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path or URL to this schema file so editors can enable validation."
+    },
+    "redis_host": {
+      "type": "string",
+      "description": "Hostname or IP address of the target Redis server.",
+      "default": "127.0.0.1"
+    },
+    "redis_port": {
+      "type": "integer",
+      "description": "TCP port of the target Redis server.",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 6379
+    },
+    "redis_auth": {
+      "description": "Authentication parameters passed to Redis. Use a password string for Redis < 6 or an array of [username, password] for ACL-based auth.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      ]
+    },
+    "http_host": {
+      "type": "string",
+      "description": "Interface Webdis binds to for HTTP traffic.",
+      "default": "0.0.0.0"
+    },
+    "http_port": {
+      "type": "integer",
+      "description": "Port Webdis listens on.",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 7379
+    },
+    "http_threads": {
+      "type": "integer",
+      "description": "Number of Tokio worker threads dedicated to HTTP handling.",
+      "minimum": 1,
+      "default": 4
+    },
+    "threads": {
+      "type": "integer",
+      "description": "Legacy alias for http_threads. Prefer http_threads; when both exist, http_threads takes precedence.",
+      "minimum": 1,
+      "deprecated": true
+    },
+    "pool_size_per_thread": {
+      "type": "integer",
+      "description": "Number of Redis connections allocated per HTTP worker thread.",
+      "minimum": 1,
+      "default": 10
+    },
+    "pool_size": {
+      "type": "integer",
+      "description": "Legacy alias for pool_size_per_thread. Prefer pool_size_per_thread; when both exist, pool_size_per_thread takes precedence.",
+      "minimum": 1,
+      "deprecated": true
+    },
+    "database": {
+      "type": "integer",
+      "description": "Redis logical database index selected after connecting.",
+      "minimum": 0,
+      "maximum": 255,
+      "default": 0
+    },
+    "daemonize": {
+      "type": "boolean",
+      "description": "Whether to run Webdis in the background as a daemon.",
+      "default": false
+    },
+    "pidfile": {
+      "type": "string",
+      "description": "Override path to the PID file when running as a daemon. Defaults to webdis.pid when omitted."
+    },
+    "websockets": {
+      "type": "boolean",
+      "description": "Enable WebSocket endpoint (/.json) for Pub/Sub and command execution.",
+      "default": false
+    },
+    "ssl": {
+      "$ref": "#/$defs/sslConfig"
+    },
+    "acl": {
+      "type": "array",
+      "description": "Ordered list of ACL rules evaluated from top to bottom.",
+      "items": {
+        "$ref": "#/$defs/aclRule"
+      }
+    },
+    "http_max_request_size": {
+      "type": "integer",
+      "description": "Maximum accepted HTTP request size in bytes.",
+      "minimum": 1,
+      "default": 134217728
+    },
+    "user": {
+      "type": "string",
+      "description": "Drop privileges to this Unix user before serving requests."
+    },
+    "group": {
+      "type": "string",
+      "description": "Drop privileges to this Unix group before serving requests."
+    },
+    "default_root": {
+      "type": "string",
+      "description": "Redis command executed when the root path (/) is requested, e.g. /GET/index.html."
+    },
+    "verbosity": {
+      "type": "integer",
+      "description": "Logging verbosity level (0=errors only, 4=debug, >=5 trace).",
+      "minimum": 0,
+      "default": 4
+    },
+    "logfile": {
+      "type": "string",
+      "description": "Path to the log file. When omitted logs are sent to stdout."
+    },
+    "log_fsync": {
+      "$ref": "#/$defs/logFsync"
+    },
+    "hiredis": {
+      "type": "object",
+      "description": "Legacy Hiredis keep-alive settings kept for compatibility; currently ignored by the Rust server.",
+      "properties": {
+        "keep_alive_sec": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Interval passed to redisEnableKeepAliveWithInterval in the legacy server."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "aclRule": {
+      "type": "object",
+      "description": "ACL rule that can allow or deny commands based on HTTP auth and/or IP address.",
+      "additionalProperties": false,
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "description": "Redis commands disabled for clients matching this rule.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "enabled": {
+          "type": "array",
+          "description": "Redis commands enabled despite previous disabled matches.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "http_basic_auth": {
+          "type": "string",
+          "description": "Value for HTTP Basic Auth in the form username:password."
+        },
+        "ip": {
+          "type": "string",
+          "description": "IP address or CIDR range matched against the client."
+        }
+      }
+    },
+    "sslConfig": {
+      "type": "object",
+      "description": "Configuration for TLS connections to Redis.",
+      "required": [
+        "enabled",
+        "ca_cert_bundle",
+        "client_cert",
+        "client_key"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Set to true to enable TLS when connecting to Redis."
+        },
+        "ca_cert_bundle": {
+          "type": "string",
+          "description": "Path to the CA certificate bundle used to validate Redis."
+        },
+        "path_to_certs": {
+          "type": "string",
+          "description": "Optional directory containing trusted CA certificates."
+        },
+        "client_cert": {
+          "type": "string",
+          "description": "Client certificate presented to Redis."
+        },
+        "client_key": {
+          "type": "string",
+          "description": "Private key corresponding to client_cert."
+        },
+        "redis_sni": {
+          "type": "string",
+          "description": "Override SNI hostname when negotiating TLS with Redis."
+        }
+      }
+    },
+    "logFsync": {
+      "description": "Controls how aggressively Webdis fsyncs its logs.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["auto", "all"],
+          "description": "Named fsync policies."
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Fsync interval in milliseconds."
+        }
+      ]
+    }
+  }
+}

@@ -17,7 +17,8 @@ impl OutputFormat {
     pub fn from_extension(ext: &str) -> Self {
         match ext {
             "raw" => OutputFormat::Raw,
-            "msgpack" => OutputFormat::MessagePack,
+            // Support both the legacy `.msg` suffix and the explicit `.msgpack`.
+            "msg" | "msgpack" => OutputFormat::MessagePack,
             _ => OutputFormat::Json,
         }
     }

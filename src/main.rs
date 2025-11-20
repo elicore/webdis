@@ -5,9 +5,12 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use config::Config;
+use config::{Config, DEFAULT_HTTP_MAX_REQUEST_SIZE, DEFAULT_VERBOSITY};
 use handler::AppState;
+use std::fs;
+use std::io;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::process;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -23,10 +26,27 @@ struct Args {
     /// Path to configuration file
     #[arg(default_value = "webdis.json")]
     config: String,
+
+    /// Write the default configuration to --config (or webdis.json) and exit
+    #[arg(long)]
+    write_default_config: bool,
 }
 
 fn main() {
     let args = Args::parse();
+
+    if args.write_default_config {
+        match write_default_config(&args.config) {
+            Ok(_) => {
+                println!("Default configuration written to {}", args.config);
+                return;
+            }
+            Err(e) => {
+                eprintln!("Failed to write default configuration: {}", e);
+                process::exit(1);
+            }
+        }
+    }
 
     let config = match Config::new(&args.config) {
         Ok(c) => c,
@@ -37,7 +57,7 @@ fn main() {
     };
 
     // Configure logging
-    let log_level = match config.verbosity.unwrap_or(4) {
+    let log_level = match config.verbosity.unwrap_or(DEFAULT_VERBOSITY) {
         0 => tracing::Level::ERROR,
         1 => tracing::Level::WARN,
         2 => tracing::Level::INFO,
@@ -171,7 +191,9 @@ async fn async_main(config: Config) {
 
     let app = app
         .layer(DefaultBodyLimit::max(
-            config.http_max_request_size.unwrap_or(128 * 1024 * 1024),
+            config
+                .http_max_request_size
+                .unwrap_or(DEFAULT_HTTP_MAX_REQUEST_SIZE),
         ))
         .with_state(app_state);
 
@@ -186,4 +208,21 @@ async fn async_main(config: Config) {
     )
     .await
     .unwrap();
+}
+
+const DEFAULT_SCHEMA_PATH: &str = "./webdis.schema.json";
+
+fn write_default_config(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let path_ref = Path::new(path);
+    if path_ref.exists() {
+        return Err(Box::new(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("{} already exists", path),
+        )));
+    }
+
+    let value = Config::default_document(DEFAULT_SCHEMA_PATH);
+    let json = serde_json::to_string_pretty(&value)?;
+    fs::write(path_ref, format!("{json}\n"))?;
+    Ok(())
 }
