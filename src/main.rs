@@ -53,11 +53,25 @@ async fn main() {
         }
     };
 
-    info!("Redis pool initialized");
+    // Create a dedicated Redis client for Pub/Sub
+    let scheme = if config.ssl.as_ref().map(|s| s.enabled).unwrap_or(false) {
+        "rediss"
+    } else {
+        "redis"
+    };
+    let redis_url = format!(
+        "{}://{}:{}/{}",
+        scheme, config.redis_host, config.redis_port, config.database
+    );
+    let pubsub_client = deadpool_redis::redis::Client::open(redis_url)
+        .expect("Failed to create Redis client for Pub/Sub");
+    let pubsub_manager = pubsub::PubSubManager::new(pubsub_client);
 
-    let acl = acl::Acl::new(config.acl.clone());
-    let app_state = Arc::new(AppState { pool, acl });
-
+    let app_state = Arc::new(AppState {
+        pool,
+        acl: acl::Acl::new(config.acl),
+        pubsub: pubsub_manager,
+    });
     let app = Router::new()
         .route(
             "/*command",

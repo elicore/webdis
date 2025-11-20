@@ -12,9 +12,12 @@ use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use crate::pubsub::PubSubManager;
+
 pub struct AppState {
     pub pool: RedisPool,
     pub acl: Acl,
+    pub pubsub: PubSubManager,
 }
 
 use axum::body::Bytes;
