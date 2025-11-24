@@ -1,0 +1,38 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7.0
+    volumes:
+      - redis-data:/data
+      - ./certs:/certs:ro
+      - ./redis.conf:/etc/redis/redis.conf:ro
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    expose:
+      - 6380
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+    restart: unless-stopped
+
+  webdis:
+    image: elicore/webdis:latest
+    depends_on:
+      - redis
+    volumes:
+      - ./webdis.json:/etc/webdis.json:ro
+      - ./certs:/certs:ro
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6380
+      - REDIS_TLS=true
+      - REDIS_TLS_CA=/certs/ca.crt
+      - REDIS_TLS_CLIENT_CERT=/certs/client.crt
+      - REDIS_TLS_CLIENT_KEY=/certs/client.key
+    ports:
+      - "127.0.0.1:7379:7379"
+    restart: unless-stopped
+
+volumes:
+  redis-data:

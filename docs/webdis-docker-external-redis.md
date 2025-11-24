@@ -1,6 +1,9 @@
 # Running Webdis in Docker with an external Redis instance
 
-The [Docker images for Webdis](https://hub.docker.com/r/nicolas/webdis/tags) are built to help users discover Webdis and get started quickly. For this reason, they _embed_ a Redis server and the Webdis process running alongside Redis provides access to its data over HTTP.
+> NOTE: This document is preserved for compatibility. For updated instructions and a sample compose file, see `docs/docker/external-redis.md` and `docker-compose.external-redis.yml`.
+
+
+The [Docker images for Webdis](https://hub.docker.com/r/elicore/webdis/tags) are built to help users discover Webdis and get started quickly. For this reason, they _embed_ a Redis server and the Webdis process running alongside Redis provides access to its data over HTTP.
 
 To run Webdis in Docker as the front-end for an existing Redis instance, we need to configure Webdis to connect to the external Redis instance instead of its own embedded instance. In Docker, Webdis starts with the following command:
 
@@ -15,7 +18,7 @@ We first need to edit the Webdis config file, and then run the container with th
 First, let's extract the current config file from the Docker image:
 
 ```sh
-docker run --rm -ti nicolas/webdis:latest cat /etc/webdis.prod.json > webdis.orig.json
+docker run --rm -ti elicore/webdis:latest cat /etc/webdis.prod.json > webdis.orig.json
 ```
 
 We'll define two variables for our external Redis instance, and update the config file to use these values (adjust the `REDIS_HOST` and `REDIS_PORT` variables to match your environment):
@@ -54,7 +57,7 @@ docker run --name webdis-test --rm -d \
     -e REDIS_HOST="$REDIS_HOST" \
     -e REDIS_PORT="$REDIS_PORT" \
     -v "$(pwd)/webdis.new.json:/etc/webdis.new.json" \
-    -p 127.0.0.1:7379:7379 nicolas/webdis:latest \
+    -p 127.0.0.1:7379:7379 elicore/webdis:latest \
     /usr/local/bin/webdis /etc/webdis.new.json
 ```
 

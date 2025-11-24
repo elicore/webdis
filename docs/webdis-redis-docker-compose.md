@@ -1,5 +1,8 @@
 # Running Webdis and Redis in Docker Compose
 
+> NOTE: This documentation is preserved for legacy reference. Newer, consolidated Docker examples are available in `docs/docker/` including `docker-compose.dev.yml` and `docker-compose.prod.yml` which offer improved dev and production patterns.
+
+
 This page describes how to start Redis and Webdis in [Docker Compose](https://docs.docker.com/compose/). A different page describes a variant of this model, where connections from Webdis to Redis are encrypted: see "[Running Webdis & Redis in Docker Compose with SSL connections](webdis-redis-docker-compose-ssl.md#running-webdis--redis-in-docker-compose-with-ssl-connections)".
 
 ## Setup
@@ -13,7 +16,7 @@ cd playground
 
 The files we'll need are:
 1. A config file for webdis, named `webdis.json`
-2. A Compose file for Docker Compose, named `docker-compose.yml` 
+2. A Compose file for Docker Compose, named `docker-compose.yml`
 
 ### Webdis configuration
 
@@ -35,7 +38,7 @@ Create a new file named `docker-compose.yml` in your `playground` directory, wit
 ```yaml
 services:
   webdis:
-    image: nicolas/webdis:latest
+    image: elicore/webdis:latest
     command: /usr/local/bin/webdis /config/webdis.json
     volumes:  # mount volume containing the config file
       - ./:/config
@@ -54,7 +57,7 @@ services:
       - "6379:6379"
 
 networks:
-  shared: 
+  shared:
 ```
 
 This configures two services named `webdis` and `redis`, sharing a common network named `shared`. With the `expose` property, Redis allows connections from Webdis on port 6379. The `webdis` container mounts the local `playground` directory under `/config` and starts its binary using the configuration file we've just downloaded and edited. Finally, Webdis also allows binds its (container) port 7379 to the hosts's loopback interface also on port 7379. This will let us run `curl` locally to connect to Webdis from the host.

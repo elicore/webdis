@@ -1,0 +1,46 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7.0
+    volumes:
+      - redis-data:/data
+    command: redis-server /etc/redis/redis.conf --protected-mode no
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    secrets:
+      - redis_password
+
+  webdis:
+    image: elicore/webdis:latest
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "7379:7379"
+    volumes:
+      - webdis-config:/etc/webdis.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7379/PING"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
+  webdis-config:
+
+secrets:
+  redis_password:
+    file: ./secrets/redis_password

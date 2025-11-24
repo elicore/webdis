@@ -1,5 +1,8 @@
 # Running Webdis and Redis in Docker Compose with SSL connections
 
+> NOTE: This documentation is preserved for legacy reference. For updated TLS examples and helper scripts, see `docs/docker/compose.ssl.md` and `scripts/generate-certs.sh`.
+
+
 This page describes how to start Redis and Webdis in [Docker Compose](https://docs.docker.com/compose/), with secure connections between the two.
 
 ## Requirements
@@ -213,7 +216,7 @@ Create a new file named `docker-compose.yml` in your `playground` directory, wit
 ```yaml
 services:
   webdis:
-    image: nicolas/webdis:latest
+    image: elicore/webdis:latest
     command: /usr/local/bin/webdis-ssl /config/webdis.json
     volumes:  # mount volume containing the config files
       - ./config:/config
@@ -235,7 +238,7 @@ services:
       - "6380"
 
 networks:
-  secure: 
+  secure:
 ```
 
 This configures two services named `webdis` and `redis`, sharing a common network named `secure`. With the `expose` property Redis allows connections from Webdis on port 6380. Both containers mount the local `config` directory under `/config` and start their binaries using the configuration files we've just created and edited. Finally, Webdis also allows binds its (container) port 7379 to the hosts's loopback interface also on port 7379. This will let us run `curl` locally to connect to Webdis from the host.

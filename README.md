@@ -23,6 +23,48 @@ webdis --write-default-config --config /path/to/webdis.json
 
 The command refuses to overwrite existing files.
 
+## Docker & deployments
+
+This repository includes Docker & Compose examples for development and production scenarios under `docs/docker/`. Important notes:
+
+- The `Dockerfile` in this repository builds a Rust `webdis` binary only; it does not include an embedded `redis-server`. Some other images (that have historically bundled Redis) may still exist; this repository’s images and examples avoid referencing those upstream variants and instead use the repo-built `elicore/webdis` image or local builds.
+- Development compose (`docker-compose.dev.yml`) builds a local image and runs Redis as a sidecar for quick testing.
+- Production examples (`docker-compose.prod.yml`) favor pinned images, named volumes, secrets, and external reverse proxies.
+- TLS and RDB import examples are also provided under `docs/docker/` and require additional setup described in those docs.
+
+Open `docs/docker/README.md` for more information and a walkthrough of the recommended files and scripts.
+
+Quick demo (local):
+
+```bash
+# Build & run Webdis with local Redis via Compose
+docker compose -f docker-compose.dev.yml up --build
+
+# Stop and remove the running containers/volumes after testing
+docker compose -f docker-compose.dev.yml down -v
+
+Makefile targets (shortcuts):
+
+```bash
+# build local dev image (webdis:dev)
+make docker-build-dev
+
+# build & tag the org image (elicore/webdis:latest)
+make docker-build
+
+# push the org image (needs Docker credentials)
+make docker-push
+
+# start dev compose stack
+make compose-up-dev
+
+# stop & remove volumes
+make compose-down-dev
+```
+```
+
+
+
 ## Using Webdis
 
 ### Basic HTTP examples

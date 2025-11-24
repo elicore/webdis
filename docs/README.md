@@ -10,4 +10,6 @@
 
 [**Importing a Redis `.rdb` data file and serving it with Webdis in Docker:**](webdis-docker-serve-rdb-file.md) How to take an existing Redis "dump" file in `RDB` format, and make it accessible over HTTP with Webdis running in a Docker container.
 
+[**Docker & Compose consolidated examples:**](docker/README.md) Modernized Docker examples with dev/prod compose files, TLS setup, RDB import workflows, and helper scripts.
+
 **(more coming in the future!)**

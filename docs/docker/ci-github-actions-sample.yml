@@ -1,0 +1,91 @@
+name: Build & push Docker image (elicore/webdis)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: build-and-push-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.build-and-push.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry (Docker Hub)
+        uses: docker/login-action@v2
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine image name and version tag
+        id: prepare
+        run: |
+          echo "IMAGE_NAME=elicore/webdis" >> $GITHUB_ENV
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            echo "IMAGE_TAG=${TAG_NAME}" >> $GITHUB_ENV
+          else
+            SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)
+            echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_ENV
+          fi
+          echo "TAGS<<EOF" >> $GITHUB_ENV
+          echo "elicore/webdis:${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "elicore/webdis:latest" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.TAGS }}
+          platforms: linux/amd64,linux/arm64
+
+      - name: Install cosign
+        if: ${{ secrets.COSIGN_KEY != '' }}
+        uses: sigstore/cosign-installer@v2
+
+      - name: Decode COSIGN key from secret (private key file)
+        if: ${{ secrets.COSIGN_KEY != '' }}
+        run: |
+          echo "${{ secrets.COSIGN_KEY }}" | base64 --decode > $HOME/cosign.key
+          chmod 600 $HOME/cosign.key
+
+      - name: Sign version tag with cosign (private key)
+        if: ${{ secrets.COSIGN_KEY != '' }}
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign --key $HOME/cosign.key "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+
+      - name: Sign latest tag with cosign (private key)
+        if: ${{ secrets.COSIGN_KEY != '' }}
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign --key $HOME/cosign.key "${{ env.IMAGE_NAME }}:latest"
+
+      - name: Set workflow output: image_digest
+        run: |
+          echo "image_digest=${{ steps.build-and-push.outputs.digest }}" >> $GITHUB_OUTPUT

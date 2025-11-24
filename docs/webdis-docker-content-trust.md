@@ -1,11 +1,14 @@
 # Webdis and Docker Content Trust
 
+> NOTE: This documentation is preserved for legacy reference. The updated, recommended approach is to use Cosign (Sigstore) for image signature verification and to follow examples in `docs/docker/content-trust.md`.
+
+
 Docker images for Webdis are signed using [Docker Content Trust (DCT)](https://docs.docker.com/engine/security/trust/). This means that you can verify that a Docker image you pulled for Webdis is legitimate and was built by the author of Webdis, rather than by an unknown third-party.
 
 Docker images for Webdis are published on Docker Hub and Amazon Elastic Container Registry (ECR):
 
-- On Docker Hub, they are under `nicolas/webdis`: https://hub.docker.com/r/nicolas/webdis
-- On ECR, they are also under `nicolas/webdis`: https://gallery.ecr.aws/nicolas/webdis
+- On Docker Hub, they are under `elicore/webdis`: https://hub.docker.com/r/elicore/webdis
+- On ECR, they are also under `elicore/webdis`: https://gallery.ecr.aws/elicore/webdis
 
 **Important:** Only images starting with [release 0.1.12](https://github.com/nicolasff/webdis/releases/tag/0.1.12) are signed. Images starting with [release 0.1.19](https://github.com/nicolasff/webdis/releases/tag/0.1.19) are published as multi-architecture manifests, so validating them involves different steps.
 
@@ -27,27 +30,27 @@ To validate an image, use `docker trust inspect` followed by the image name and 
 
 First, pull the image:
 ```
-$ docker pull nicolas/webdis:0.1.19
-0.1.19: Pulling from nicolas/webdis
+$ docker pull elicore/webdis:0.1.19
+0.1.19: Pulling from elicore/webdis
 Digest: sha256:5de58646bae3ee52e05a65672532120b094682b79823291031ccb41533c21667
-Status: Image is up to date for nicolas/webdis:0.1.19
-docker.io/nicolas/webdis:0.1.19
+Status: Image is up to date for elicore/webdis:0.1.19
+docker.io/elicore/webdis:0.1.19
 ```
 Then, inspect its content trust metadata:
 ```
-$ docker trust inspect --pretty nicolas/webdis:0.1.19
+$ docker trust inspect --pretty elicore/webdis:0.1.19
 
-Signatures for nicolas/webdis:0.1.19
+Signatures for elicore/webdis:0.1.19
 
 SIGNED TAG   DIGEST                                                             SIGNERS
 0.1.19       5de58646bae3ee52e05a65672532120b094682b79823291031ccb41533c21667   (Repo Admin)
 
-List of signers and their keys for nicolas/webdis:0.1.19
+List of signers and their keys for elicore/webdis:0.1.19
 
 SIGNER      KEYS
-nicolasff   dd0768b9d35d
+elicore     dd0768b9d35d
 
-Administrative keys for nicolas/webdis:0.1.19
+Administrative keys for elicore/webdis:0.1.19
 
   Repository Key:       fed0b56b8a8fd4d156fb2f47c2e8bd3eb61948b72a787c18e2fa3ea3233bba1a
   Root Key:    40be21f47831d593892370a8e3fc5bfffb16887c707bd81a6aed2088dc8f4bef
@@ -56,7 +59,7 @@ Administrative keys for nicolas/webdis:0.1.19
 ## 🔑 Key IDs
 
 - The `SIGNER` field tells you who signed the image; it should be `nicolasff`. The short key ID is `dd0768b9d35d`, the full ID being `dd0768b9d35d344bbd1681418d27052c4c896a59be214352448daa2b6925b95b`.
-- The Repository Key is scoped to the Docker Hub repo, `nicolas/webdis`. This should match as well. Its key ID is `fed0b56b8a8fd4d156fb2f47c2e8bd3eb61948b72a787c18e2fa3ea3233bba1a`.
+- The Repository Key is scoped to the Docker Hub repo, `elicore/webdis`. This should match as well. Its key ID is `fed0b56b8a8fd4d156fb2f47c2e8bd3eb61948b72a787c18e2fa3ea3233bba1a`.
 - Finally, the Root Key ID is `40be21f47831d593892370a8e3fc5bfffb16887c707bd81a6aed2088dc8f4bef`.
 
 Make sure that **all** the key IDs mentioned in the output of `docker trust inspect` are listed here.
@@ -75,20 +78,20 @@ Given an image version, download it from both Docker Hub and AWS ECR. Let's do t
 
 First, from Docker Hub:
 ```
-$ docker pull nicolas/webdis:0.1.18
-0.1.18: Pulling from nicolas/webdis
+$ docker pull elicore/webdis:0.1.18
+0.1.18: Pulling from elicore/webdis
 Digest: sha256:6def97f1299c4de2046b1ae77427a7fa41552c91d3ae02059f79dbcb0650fe9e
-Status: Image is up to date for nicolas/webdis:0.1.18
-docker.io/nicolas/webdis:0.1.18
+Status: Image is up to date for elicore/webdis:0.1.18
+docker.io/elicore/webdis:0.1.18
 ```
 
 Then, from AWS ECR:
 ```
-$ docker pull public.ecr.aws/nicolas/webdis:0.1.18
-0.1.18: Pulling from nicolas/webdis
+docker pull public.ecr.aws/elicore/webdis:0.1.18
+0.1.18: Pulling from elicore/webdis
 Digest: sha256:6def97f1299c4de2046b1ae77427a7fa41552c91d3ae02059f79dbcb0650fe9e
-Status: Downloaded newer image for public.ecr.aws/nicolas/webdis:0.1.18
-public.ecr.aws/nicolas/webdis:0.1.18
+Status: Downloaded newer image for public.ecr.aws/elicore/webdis:0.1.18
+public.ecr.aws/elicore/webdis:0.1.18
 ```
 
 We can already see that the two lines starting with `Digest:` show the same hash.
@@ -96,10 +99,10 @@ We can already see that the two lines starting with `Digest:` show the same hash
 To compare the images themselves, we can use `docker image inspect` and compare the `Id` fields:
 
 ```
-$ docker image inspect nicolas/webdis:0.1.18 | grep -w Id
+$ docker image inspect elicore/webdis:0.1.18 | grep -w Id
         "Id": "sha256:ecadadde26d4b78216b1b19e903a116ebcd824ae7f27963c5e3518ab1a58d859",
 
-$ docker image inspect public.ecr.aws/nicolas/webdis:0.1.18 | grep -w Id
+$ docker image inspect public.ecr.aws/elicore/webdis:0.1.18 | grep -w Id
         "Id": "sha256:ecadadde26d4b78216b1b19e903a116ebcd824ae7f27963c5e3518ab1a58d859",
 ```
 
@@ -114,13 +117,13 @@ Now that we know that the image we pulled from ECR is the exact same as the one 
 Multi-architecture images are built using a _manifest list_, which is a small file that references multiple manifests. In turn, a Docker image manifest contains information about a single image, such as its size, layers, digest, etc:
 
 ```
- docker.io/nicolas/webdis:0.1.19
+ docker.io/elicore/webdis:0.1.19
               │
               ▼
  ┌─Docker Hub Manifest List─┐
  │ ┌─────────────────────┐  │
  │ │ type: manifest.v2   │  │
- │ │ digest: sha256:AAAA─┼──┼────► docker.io/nicolas/webdis@sha256:AAAA
+ │ │ digest: sha256:AAAA─┼──┼────► docker.io/elicore/webdis@sha256:AAAA
  │ │ platform:           │  │                │
  │ │   arch: amd64       │  │                ▼
  │ │   os: linux         │  │       ┌─Docker Hub Manifest─┐
@@ -148,7 +151,7 @@ The entry point for a `docker pull` is just the repo and the version; here the r
 If we run `docker manifest inspect` on a multi-architecture manifest, we get this manifest list with two entries:
 
 ```
-$ docker manifest inspect docker.io/nicolas/webdis:0.1.19
+$ docker manifest inspect docker.io/elicore/webdis:0.1.19
 {
    "schemaVersion": 2,
    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
@@ -184,7 +187,7 @@ Note that we didn't run `docker image inspect` since we're not dealing with imag
 
 If we look at the manifest for `amd64` (same as x86-64), we see that it references a single Docker image:
 ```
-$ docker manifest inspect docker.io/nicolas/webdis@sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54
+$ docker manifest inspect docker.io/elicore/webdis@sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54
 {
     "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
     "schemaVersion": 2,
@@ -201,15 +204,15 @@ It's important to note that this manifest does not have a particular tag or huma
 But this time, the manifest finally points to an image (see `mediaType`), with SHA-256 digest `010021e0…`. If instead of running `docker manifest inspect` we run `docker inspect` (with the same hash as in the previous command), this time we get the same familiar as the one for an image:
 
 ```
-$ docker inspect docker.io/nicolas/webdis@sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54
+$ docker inspect docker.io/elicore/webdis@sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54
 [
     {
         "Id": "sha256:010021e00e0910d0b73d0bfc9cb58ce583e96f3ad69fc6ee4a7a41baa707d7f7",
         "RepoTags": [
-            "nicolas/webdis:0.1.19",
-            "nicolas/webdis:0.1.19-amd64",
-            "nicolas/webdis:latest",
-            "public.ecr.aws/nicolas/webdis:0.1.19-amd64"
+            "elicore/webdis:0.1.19",
+            "elicore/webdis:0.1.19-amd64",
+            "elicore/webdis:latest",
+            "public.ecr.aws/elicore/webdis:0.1.19-amd64"
         ],
         "...",
         "Config": {
@@ -221,7 +224,7 @@ $ docker inspect docker.io/nicolas/webdis@sha256:2ced2d99146e1bcaf10541d17dbac57
                 "org.opencontainers.image.revision": "417e0ac48345d849cd37db0a473d763b47195c23",
                 "org.opencontainers.image.source": "https://github.com/nicolasff/webdis/tree/0.1.19",
                 "org.opencontainers.image.title": "Webdis 0.1.19",
-                "org.opencontainers.image.url": "https://hub.docker.com/r/nicolas/webdis",
+                "org.opencontainers.image.url": "https://hub.docker.com/r/elicore/webdis",
                 "org.opencontainers.image.version": "0.1.19"
             }
         },
@@ -242,8 +245,8 @@ With Docker Hub, we can still use `docker trust inspect repo/image:version` to v
 
 Here's its output, cleaned up with `grep` and `sed` for brevity but without losing any information:
 ```
-$ docker trust inspect docker.io/nicolas/webdis:0.1.19 | grep -Ew '[A-Z][A-Za-z]+' | sed -E -e 's/ {8}/  /g' | sed -E -e 's/"|(^ {2})|((\[|,)$)//g'
-Name: docker.io/nicolas/webdis:0.1.19
+$ docker trust inspect docker.io/elicore/webdis:0.1.19 | grep -Ew '[A-Z][A-Za-z]+' | sed -E -e 's/ {8}/  /g' | sed -E -e 's/"|(^ {2})|((\[|,)$)//g'
+Name: docker.io/elicore/webdis:0.1.19
 SignedTags:
   SignedTag: 0.1.19
   Digest: 5de58646bae3ee52e05a65672532120b094682b79823291031ccb41533c21667
@@ -271,7 +274,7 @@ The `SignedTag` at the beginning of the output mentions `0.1.19`, but also a dig
 ℹ️ An important point here is that Docker computes digests **without** a terminating new line for the JSON being hashed, but in a terminal it always adds it for readability. To compute the digest, you need to remove this new line; you can do this with `| perl -pe 'chomp if eof'`. All together:
 
 ```
-$ docker manifest inspect docker.io/nicolas/webdis:0.1.19 | perl -pe 'chomp if eof' | shasum -a 256
+$ docker manifest inspect docker.io/elicore/webdis:0.1.19 | perl -pe 'chomp if eof' | shasum -a 256
 5de58646bae3ee52e05a65672532120b094682b79823291031ccb41533c21667  -
 ```
 (change `shasum -a 256` to `sha256sum` on GNU/Linux)
@@ -295,13 +298,13 @@ The same applies for ARM64v8 images, of course.
 
 Validate the signatures with Docker Hub:
 ```
-$ docker trust inspect --pretty docker.io/nicolas/webdis:0.1.19
+$ docker trust inspect --pretty docker.io/elicore/webdis:0.1.19
 [ ... make sure the keys are all valid ... ]
 ```
 
 Extract the manifest hashes from the Docker Hub manifest list:
 ```
-$ docker manifest inspect nicolas/webdis:0.1.19 | grep -E 'digest|architecture'
+$ docker manifest inspect elicore/webdis:0.1.19 | grep -E 'digest|architecture'
          "digest": "sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54",
             "architecture": "amd64",
          "digest": "sha256:d026c5675552947b6a755439dfd58360e44a8860436f4eddfe9b26d050801248",
@@ -310,7 +313,7 @@ $ docker manifest inspect nicolas/webdis:0.1.19 | grep -E 'digest|architecture'
 
 Examine the Docker Hub manifest for the architecture you're running:
 ```
-$ docker manifest inspect nicolas/webdis@sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54 | grep -A3 config
+$ docker manifest inspect elicore/webdis@sha256:2ced2d99146e1bcaf10541d17dbac573cffd02237c3b268875be1868138d3b54 | grep -A3 config
     "config": {
         "mediaType": "application/vnd.docker.container.image.v1+json",
         "digest": "sha256:010021e00e0910d0b73d0bfc9cb58ce583e96f3ad69fc6ee4a7a41baa707d7f7",
@@ -322,7 +325,7 @@ Note the digest: `sha256:010021e00e0910d0b73d0bfc9cb58ce583e96f3ad69fc6ee4a7a41b
 Repeat the last two steps for ECR, first extracting the manifest hashes from the ECR manifest list:
 
 ```
-$ docker manifest inspect public.ecr.aws/nicolas/webdis:0.1.19 | grep -E 'digest|architecture'
+$ docker manifest inspect public.ecr.aws/elicore/webdis:0.1.19 | grep -E 'digest|architecture'
          "digest": "sha256:ec6a77ec083a659d3293810542c07bc1eee74e148cb02448cca3bfb260d7c19c",
             "architecture": "amd64",
          "digest": "sha256:d78f48b96464cd31bb1c29b01bcdaceac28c2ccb2d52a294cdf4cf840f5b6433",
@@ -332,7 +335,7 @@ $ docker manifest inspect public.ecr.aws/nicolas/webdis:0.1.19 | grep -E 'digest
 These are different, but do they point to the same images?
 
 ```
-$ docker manifest inspect public.ecr.aws/nicolas/webdis@sha256:ec6a77ec083a659d3293810542c07bc1eee74e148cb02448cca3bfb260d7c19c | grep -A3 config
+$ docker manifest inspect public.ecr.aws/elicore/webdis@sha256:ec6a77ec083a659d3293810542c07bc1eee74e148cb02448cca3bfb260d7c19c | grep -A3 config
     "config": {
         "mediaType": "application/vnd.docker.container.image.v1+json",
         "size": 2728,
@@ -362,10 +365,10 @@ The Manifest List "entry point" is underlined in bold.
         │      │ layers: 5 [...]     │          │  │ layers: 5 [...]     │
         │      └─────────────────────┘          │  └─────────────────────┘
         │                                       │
-        └─docker.io/nicolas/webdis@sha256:AAAA  └──public.ecr.aws/nicolas/webdis@sha256:CCCC
+        └─docker.io/elicore/webdis@sha256:AAAA  └──public.ecr.aws/elicore/webdis@sha256:CCCC
                                           ▲                                             ▲
    DOCKER HUB ENTRY POINT:                │       AWS ECR ENTRY POINT:                  │
-┌──docker.io/nicolas/webdis:0.1.19        │    ┌──public.ecr.aws/nicolas/webdis:0.1.19  │
+┌──docker.io/elicore/webdis:0.1.19        │    ┌──public.ecr.aws/elicore/webdis:0.1.19  │
 │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀        │    │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  │
 │                                         │    │                                        │
 └───────────►┌─Docker Hub Manifest List─┐ │    └──►┌──AWS ECR Manifest List───┐         │
@@ -385,7 +388,7 @@ The Manifest List "entry point" is underlined in bold.
              │ └─────────────────────┘  │ │        │ └─────────────────────┘  │         │
              └──────────────────────────┘ │        └──────────────────────────┘         │
                                           ▼                                             ▼
-       ┌──docker.io/nicolas/webdis@sha256:BBBB   ┌─public.ecr.aws/nicolas/webdis@sha256:DDDD
+      ┌──docker.io/elicore/webdis@sha256:BBBB   ┌─public.ecr.aws/elicore/webdis@sha256:DDDD
        │                                         │
        └──────►┌─Docker Hub Manifest─┐           └─►┌──AWS ECR Manifest───┐
                │ type: image.v1      │              │ type: image.v1      │

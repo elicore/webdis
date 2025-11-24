@@ -1,5 +1,8 @@
 # Serving data from a Redis `RDB` snapshot over HTTP with Webdis and Docker
 
+> NOTE: This document is preserved for legacy reference. For an updated RDB import and compose example, see `docs/docker/serve-rdb.md` and `docker-compose.rdb.yml`.
+
+
 Redis can produce snapshots of its dataset using the [`SAVE`](https://redis.io/commands/save/) command, which creates a file usually named `dump.rdb`. This page explains how to take such a file and make its contents available over HTTP with Webdis and Redis running in a single Docker container.
 
 ## TL;DR: if you just need the command
@@ -14,7 +17,7 @@ Then, run the Webdis container with this directory mounted as `/var/lib/redis`:
 
 ```shell
 $ docker run --name webdis-local-data --rm -d -p 127.0.0.1:7379:7379 \
-      -v$(pwd)/redis-data:/var/lib/redis nicolas/webdis:latest
+    -v$(pwd)/redis-data:/var/lib/redis elicore/webdis:latest
 ```
 
 The contents of the `dump.rdb` file are now accessible over HTTP on port `7379`.
@@ -30,12 +33,12 @@ For a full explanation, please read on.
 
 ### Structure of the Webdis container
 
-The [Docker images for Webdis](https://hub.docker.com/r/nicolas/webdis/tags) are built to help users discover Webdis and get started quickly. For this reason, they _embed_ a Redis server and the Webdis process running alongside Redis provides access to its keys over HTTP.
+The [Docker images for Webdis](https://hub.docker.com/r/elicore/webdis/tags) are built to help users discover Webdis and get started quickly. For this reason, they _embed_ a Redis server and the Webdis process running alongside Redis provides access to its keys over HTTP.
 
 To start Redis with an existing `dump.rdb` file, we first need to find the directory used by Redis to save its data. This directory is configured by the `dir` entry in `redis.conf` ([see documentation](https://github.com/redis/redis/blob/39d216a326539e8f3d51fca961d193e4d7be43e0/redis.conf#L496-L504)), so all we have to do is `grep` for it in `redis.conf`:
 
 ```shell
-$ docker run --rm -ti nicolas/webdis:latest cat /etc/redis.conf | grep ^dir
+$ docker run --rm -ti elicore/webdis:latest cat /etc/redis.conf | grep ^dir
 dir /var/lib/redis
 ```
 ℹ️ Side note: a tool like [Dive](https://github.com/wagoodman/dive) can also be helpful to explore Docker images.
@@ -51,7 +54,7 @@ So let's create this directory, run Webdis with the custom mount, write a couple
 $ mkdir ./redis-data
 
 $ docker run -d --rm --name webdis-local -v$(pwd)/redis-data:/var/lib/redis \
-    -p127.0.0.1:7379:7379 nicolas/webdis:latest
+    -p127.0.0.1:7379:7379 elicore/webdis:latest
 f95a587c644a7b8b838eee2ac60b9bb92613e3aa4a5cc6347ca61fdce324c477
 
 $ curl -s http://127.0.0.1:7379/SET/hello/world
@@ -90,7 +93,7 @@ To inject this file into a new Webdis container, we just have to start it the sa
 
 ```shell
 $ docker run -d --rm --name webdis-new -v$(pwd)/redis-data:/var/lib/redis \
-    -p127.0.0.1:7379:7379 nicolas/webdis:latest
+    -p127.0.0.1:7379:7379 elicore/webdis:latest
 4002cf5a699150875efa445a1e862865886b2515bbab6ad1d556ebd5f0234ae1
 
 $ curl -s http://127.0.0.1:7379/GET/hello

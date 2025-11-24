@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7.0
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+    restart: unless-stopped
+
+  webdis:
+    build: .
+    image: webdis:dev
+    depends_on:
+      - redis
+    ports:
+      - "127.0.0.1:7379:7379"
+    volumes:
+      - ./webdis.json:/etc/webdis.json:ro
+      - ./config:/etc/webdis.d:ro
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=debug
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7379/PING"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    name: webdis_redis_data

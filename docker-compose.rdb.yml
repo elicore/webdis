@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7.0
+    command: redis-server --dir /data --appendonly no
+    volumes:
+      - redis-data:/data
+    expose:
+      - 6379
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+
+  webdis:
+    image: elicore/webdis:latest
+    depends_on:
+      - redis
+    ports:
+      - "127.0.0.1:7379:7379"
+    volumes:
+      - ./webdis.json:/etc/webdis.json:ro
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+
+volumes:
+  redis-data:
