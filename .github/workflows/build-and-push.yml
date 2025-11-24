@@ -46,10 +46,8 @@ jobs:
             SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)
             echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_ENV
           fi
-          echo "TAGS<<EOF" >> $GITHUB_ENV
-          echo "elicore/webdis:${IMAGE_TAG}" >> $GITHUB_ENV
-          echo "elicore/webdis:latest" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Put tags into a comma-separated value so docker/build-push-action receives them properly
+          echo "TAGS=elicore/webdis:${IMAGE_TAG},elicore/webdis:latest" >> $GITHUB_ENV
 
       - name: Build and push Docker images
         id: build-and-push
