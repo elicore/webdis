@@ -10,26 +10,32 @@ pub enum OutputFormat {
     Json,
     Raw,
     MessagePack,
-    // Add others as needed
 }
 
 impl OutputFormat {
     pub fn from_extension(ext: &str) -> Self {
         match ext {
             "raw" => OutputFormat::Raw,
-            // Support both the legacy `.msg` suffix and the explicit `.msgpack`.
             "msg" | "msgpack" => OutputFormat::MessagePack,
             _ => OutputFormat::Json,
         }
     }
 
-    pub fn format_response(&self, command: &str, value: Value) -> Response {
+    pub fn format_response(&self, command: &str, value: Value, callback: Option<String>) -> Response {
         match self {
             OutputFormat::Json => {
                 let response = json!({
                     command: value
                 });
-                Json(response).into_response()
+                if let Some(cb) = callback {
+                    let body = format!("{}({})", cb, response.to_string());
+                    Response::builder()
+                        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+                        .body(Body::from(body))
+                        .unwrap()
+                } else {
+                    Json(response).into_response()
+                }
             }
             OutputFormat::Raw => {
                 let body = match value {
