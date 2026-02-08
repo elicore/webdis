@@ -211,7 +211,20 @@ async fn process_request(
 
     let mut response = match result {
         Ok(val) => {
-            let json_val = redis_value_to_json(val);
+            let mut json_val = redis_value_to_json(val);
+
+            // Special handling for INFO command to return structured JSON
+            if (cmd_name.eq_ignore_ascii_case("INFO")
+                || (cmd_name.eq_ignore_ascii_case("CLUSTER")
+                    && args
+                        .get(0)
+                        .map_or(false, |a| a.eq_ignore_ascii_case("INFO"))))
+                && json_val.is_string()
+            {
+                if let Some(s) = json_val.as_str() {
+                    json_val = parse_info_output(s);
+                }
+            }
 
             // Compute ETag for GET requests (body is None)
             let etag = if body.is_none() {
@@ -274,5 +287,62 @@ pub fn redis_value_to_json(v: RedisValue) -> Value {
         }
         RedisValue::Status(s) => Value::String(s),
         RedisValue::Okay => Value::String("OK".to_string()),
+    }
+}
+
+/// Parses the textual output of the Redis INFO command into a structured JSON object.
+///
+/// It splits the output line by line, ignoring comments (starting with #) and empty lines,
+/// and parses "key:value" pairs into a JSON map.
+pub fn parse_info_output(text: &str) -> Value {
+    let mut map = serde_json::Map::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((key, value)) = line.split_once(':') {
+            map.insert(
+                key.trim().to_string(),
+                Value::String(value.trim().to_string()),
+            );
+        }
+    }
+    Value::Object(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_info_output() {
+        let input = "
+# Server
+redis_version:7.2.3
+uptime_in_seconds:3600
+
+# Clients
+connected_clients:1
+";
+        let expected = json!({
+            "redis_version": "7.2.3",
+            "uptime_in_seconds": "3600",
+            "connected_clients": "1"
+        });
+        assert_eq!(parse_info_output(input), expected);
+    }
+
+    #[test]
+    fn test_parse_info_output_empty() {
+        assert_eq!(parse_info_output(""), json!({}));
+    }
+
+    #[test]
+    fn test_parse_info_output_no_colon() {
+        let input = "invalid line\nkey:value";
+        let expected = json!({"key": "value"});
+        assert_eq!(parse_info_output(input), expected);
     }
 }
