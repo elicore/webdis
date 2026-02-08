@@ -128,6 +128,8 @@ curl http://127.0.0.1:7379/INCR/y
 # -> {"INCR":42}
 ```
 
+The `INFO` command output is automatically parsed into a structured JSON object for easier programmatic inspection, rather than returning the raw multi-line string. This behavior also applies to `CLUSTER INFO`.
+
 Other formats:
 
 - `.raw` or `?type=raw` – plain-text representation (useful for CLI/debugging).

@@ -338,3 +338,32 @@ async fn test_etag_support() {
 
     assert_eq!(resp.status(), reqwest::StatusCode::OK);
 }
+
+/// Tests that the INFO command returns a structured JSON object.
+///
+/// This test validates:
+/// - The response for INFO is a JSON object, not a string.
+/// - The object contains expected Redis performance metrics and version info.
+#[tokio::test]
+async fn test_info_command() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/INFO", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+
+    // INFO response should now be a structured object
+    assert!(body["INFO"].is_object());
+
+    // Check for some common keys in INFO output
+    let info = body["INFO"].as_object().unwrap();
+    assert!(info.contains_key("redis_version"));
+    assert!(info.contains_key("uptime_in_seconds"));
+    assert!(info.contains_key("used_memory"));
+}
