@@ -4,7 +4,7 @@ use crate::redis::RedisPool;
 use axum::extract::ConnectInfo;
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use deadpool_redis::redis::{cmd, Value as RedisValue};
@@ -13,6 +13,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::pubsub::PubSubManager;
+use sha1::{Digest, Sha1};
 
 pub async fn handle_default_root(
     State(state): State<Arc<AppState>>,
@@ -26,7 +27,16 @@ pub async fn handle_default_root(
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
 
-    process_request(default_root, params, None, state, addr, auth_header).await
+    process_request(
+        default_root,
+        params,
+        None,
+        state,
+        addr,
+        auth_header,
+        headers,
+    )
+    .await
 }
 
 pub struct AppState {
@@ -72,6 +82,7 @@ pub async fn handle_post(
         state,
         addr,
         auth_header,
+        headers,
     )
     .await
 }
@@ -95,6 +106,7 @@ pub async fn handle_put(
         state,
         addr,
         auth_header,
+        headers,
     )
     .await
 }
@@ -110,7 +122,7 @@ pub async fn handle_get(
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
-    process_request(command, params, None, state, addr, auth_header).await
+    process_request(command, params, None, state, addr, auth_header, headers).await
 }
 
 async fn process_request(
@@ -120,6 +132,7 @@ async fn process_request(
     state: Arc<AppState>,
     addr: SocketAddr,
     auth_header: Option<String>,
+    headers: HeaderMap,
 ) -> Response {
     let mut conn = match state.pool.get().await {
         Ok(conn) => conn,
@@ -176,9 +189,9 @@ async fn process_request(
     }
 
     // Append body as the last argument if present
-    if let Some(body_bytes) = body {
+    if let Some(body_bytes) = body.as_ref() {
         if !body_bytes.is_empty() {
-            args.push(String::from_utf8_lossy(&body_bytes).to_string());
+            args.push(String::from_utf8_lossy(body_bytes).to_string());
         }
     }
 
@@ -188,16 +201,53 @@ async fn process_request(
     }
 
     let mut redis_cmd = cmd(cmd_name);
-    for arg in args {
+    for arg in &args {
         redis_cmd.arg(arg);
     }
 
     let result: Result<RedisValue, _> = redis_cmd.query_async(&mut conn).await;
 
+    let callback = params.get("callback").cloned();
+
     let mut response = match result {
         Ok(val) => {
             let json_val = redis_value_to_json(val);
-            format.format_response(cmd_name, json_val)
+
+            // Compute ETag for GET requests (body is None)
+            let etag = if body.is_none() {
+                let mut hasher = Sha1::new();
+                hasher.update(cmd_name.as_bytes());
+                for arg in &args {
+                    hasher.update(arg.as_bytes());
+                }
+                // Use the string representation of json_val for stable hashing
+                hasher.update(json_val.to_string().as_bytes());
+                let tag = format!("\"{:x}\"", hasher.finalize());
+
+                if let Some(if_none_match) = headers
+                    .get(header::IF_NONE_MATCH)
+                    .and_then(|h| h.to_str().ok())
+                {
+                    if if_none_match == tag {
+                        let mut resp = StatusCode::NOT_MODIFIED.into_response();
+                        resp.headers_mut()
+                            .insert(header::ETAG, tag.parse().unwrap());
+                        resp.headers_mut()
+                            .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+                        return resp;
+                    }
+                }
+                Some(tag)
+            } else {
+                None
+            };
+
+            let mut resp = format.format_response(cmd_name, json_val, callback);
+            if let Some(tag) = etag {
+                resp.headers_mut()
+                    .insert(header::ETAG, tag.parse().unwrap());
+            }
+            resp
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

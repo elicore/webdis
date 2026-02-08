@@ -27,6 +27,8 @@ async-stream = "0.3.6"
 nix = { version = "0.27", features = ["user", "fs"] }
 daemonize = "0.5"
 tracing-appender = "0.2"
+sha1 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 futures-util = "0.3.31"

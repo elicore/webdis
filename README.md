@@ -9,6 +9,19 @@ Key highlights:
 - Drop-in compatibility with the original `webdis.json` (captured as `webdis.legacy.json`)
 - JSON schema-backed configuration with sensible defaults and editor validation
 
+## Features
+
+Webdis (Rust) implements a robust set of features for interacting with Redis over HTTP:
+
+- **Command Support**: Execute any Redis command via RESTful URIs.
+- **Output Formats**: Supports JSON (default), Raw RESP (`.raw`), and MessagePack (`.msgpack`).
+- **Pub/Sub**: Stream message via Server-Sent Events (SSE) or WebSockets.
+- **WebSockets**: Bi-directional command execution and Pub/Sub over a single connection.
+- **Caching (ETag)**: Automatic `ETag` generation for `GET` requests with support for `If-None-Match` to return `304 Not Modified`.
+- **ACL & Security**: Network-based and basic-auth-based Access Control Lists.
+- **Connection Pooling**: High-performance async connection pooling.
+- **Daemonization**: Run as a system daemon with PID file support and privilege dropping.
+
 ## Quick start
 
 ```sh
@@ -36,7 +49,7 @@ Open `docs/docker/README.md` for more information and a walkthrough of the recom
 
 Quick demo (local):
 
-```bash
+````bash
 # Build & run Webdis with local Redis via Compose
 docker compose -f docker-compose.dev.yml up --build
 
@@ -60,8 +73,9 @@ make compose-up-dev
 
 # stop & remove volumes
 make compose-down-dev
-```
-```
+````
+
+````
 
 
 
@@ -80,7 +94,7 @@ curl http://127.0.0.1:7379/GET/hello
 
 # POST body: command in the request body
 curl -XPOST -d 'GET/hello' http://127.0.0.1:7379/
-```
+````
 
 ### Command format
 
@@ -162,32 +176,32 @@ Pub/Sub is available both over HTTP and WebSockets:
 - `webdis.legacy.json` mirrors the historical C configuration and remains fully supported.
 - Every field below matches the descriptions in the schema; optional values fall back to the listed defaults.
 
-| Key | Description | Optional | Type | Default |
-| --- | --- | --- | --- | --- |
-| `$schema` | Path or URL to this schema file so editors can enable validation. | Yes | string | `./webdis.schema.json` |
-| `redis_host` | Hostname or IP address of the target Redis server. | Yes | string | `127.0.0.1` |
-| `redis_port` | TCP port of the target Redis server. | Yes | integer | `6379` |
-| `redis_auth` | Authentication parameters passed to Redis (string password or `[username, password]`). | Yes | string / array | _unset_ |
-| `http_host` | Interface Webdis binds to for HTTP traffic. | Yes | string | `0.0.0.0` |
-| `http_port` | Port Webdis listens on. | Yes | integer | `7379` |
-| `http_threads` | Number of Tokio worker threads dedicated to HTTP handling. | Yes | integer | `4` |
-| `threads` | Legacy alias for `http_threads`; prefer `http_threads` when possible. | Yes | integer | _deprecated_ |
-| `pool_size_per_thread` | Number of Redis connections allocated per HTTP worker thread. | Yes | integer | `10` |
-| `pool_size` | Legacy alias for `pool_size_per_thread`; prefer the canonical name. | Yes | integer | _deprecated_ |
-| `database` | Redis logical database index selected after connecting. | Yes | integer | `0` |
-| `daemonize` | Whether to run Webdis in the background as a daemon. | Yes | boolean | `false` |
-| `pidfile` | Override path to the PID file when running as a daemon. | Yes | string | `webdis.pid` (when daemonized) |
-| `websockets` | Enable WebSocket endpoint (/.json) for Pub/Sub and command execution. | Yes | boolean | `false` |
-| `ssl` | Configuration for TLS connections to Redis (see below). | Yes | object | _unset_ |
-| `acl` | Ordered list of ACL rules evaluated from top to bottom. | Yes | array | _unset_ |
-| `http_max_request_size` | Maximum accepted HTTP request size in bytes. | Yes | integer | `134217728` (128 MiB) |
-| `user` | Drop privileges to this Unix user before serving requests. | Yes | string | _unset_ |
-| `group` | Drop privileges to this Unix group before serving requests. | Yes | string | _unset_ |
-| `default_root` | Redis command executed when `/` is requested, e.g. `/GET/index.html`. | Yes | string | _unset_ |
-| `verbosity` | Logging verbosity level (`0 = error`, `4 = debug`, `>=5 = trace`). | Yes | integer | `4` |
-| `logfile` | Path to the log file; stdout/stderr are used when unset. | Yes | string | _unset_ |
-| `log_fsync` | Controls how aggressively Webdis fsyncs its logs (`auto`, `all`, or milliseconds). | Yes | string / integer | _unset_ |
-| `hiredis` | Legacy Hiredis keep-alive settings kept for compatibility (ignored by the Rust server). | Yes | object | _unset_ |
+| Key                     | Description                                                                             | Optional | Type             | Default                        |
+| ----------------------- | --------------------------------------------------------------------------------------- | -------- | ---------------- | ------------------------------ |
+| `$schema`               | Path or URL to this schema file so editors can enable validation.                       | Yes      | string           | `./webdis.schema.json`         |
+| `redis_host`            | Hostname or IP address of the target Redis server.                                      | Yes      | string           | `127.0.0.1`                    |
+| `redis_port`            | TCP port of the target Redis server.                                                    | Yes      | integer          | `6379`                         |
+| `redis_auth`            | Authentication parameters passed to Redis (string password or `[username, password]`).  | Yes      | string / array   | _unset_                        |
+| `http_host`             | Interface Webdis binds to for HTTP traffic.                                             | Yes      | string           | `0.0.0.0`                      |
+| `http_port`             | Port Webdis listens on.                                                                 | Yes      | integer          | `7379`                         |
+| `http_threads`          | Number of Tokio worker threads dedicated to HTTP handling.                              | Yes      | integer          | `4`                            |
+| `threads`               | Legacy alias for `http_threads`; prefer `http_threads` when possible.                   | Yes      | integer          | _deprecated_                   |
+| `pool_size_per_thread`  | Number of Redis connections allocated per HTTP worker thread.                           | Yes      | integer          | `10`                           |
+| `pool_size`             | Legacy alias for `pool_size_per_thread`; prefer the canonical name.                     | Yes      | integer          | _deprecated_                   |
+| `database`              | Redis logical database index selected after connecting.                                 | Yes      | integer          | `0`                            |
+| `daemonize`             | Whether to run Webdis in the background as a daemon.                                    | Yes      | boolean          | `false`                        |
+| `pidfile`               | Override path to the PID file when running as a daemon.                                 | Yes      | string           | `webdis.pid` (when daemonized) |
+| `websockets`            | Enable WebSocket endpoint (/.json) for Pub/Sub and command execution.                   | Yes      | boolean          | `false`                        |
+| `ssl`                   | Configuration for TLS connections to Redis (see below).                                 | Yes      | object           | _unset_                        |
+| `acl`                   | Ordered list of ACL rules evaluated from top to bottom.                                 | Yes      | array            | _unset_                        |
+| `http_max_request_size` | Maximum accepted HTTP request size in bytes.                                            | Yes      | integer          | `134217728` (128 MiB)          |
+| `user`                  | Drop privileges to this Unix user before serving requests.                              | Yes      | string           | _unset_                        |
+| `group`                 | Drop privileges to this Unix group before serving requests.                             | Yes      | string           | _unset_                        |
+| `default_root`          | Redis command executed when `/` is requested, e.g. `/GET/index.html`.                   | Yes      | string           | _unset_                        |
+| `verbosity`             | Logging verbosity level (`0 = error`, `4 = debug`, `>=5 = trace`).                      | Yes      | integer          | `4`                            |
+| `logfile`               | Path to the log file; stdout/stderr are used when unset.                                | Yes      | string           | _unset_                        |
+| `log_fsync`             | Controls how aggressively Webdis fsyncs its logs (`auto`, `all`, or milliseconds).      | Yes      | string / integer | _unset_                        |
+| `hiredis`               | Legacy Hiredis keep-alive settings kept for compatibility (ignored by the Rust server). | Yes      | object           | _unset_                        |
 
 ### Nested structures
 
@@ -211,9 +225,9 @@ Pub/Sub is available both over HTTP and WebSockets:
 
 ## Testing
 
-| Command | Purpose |
-| --- | --- |
-| `cargo test --test config_test` | Validates configuration parsing, defaults, schema-backed helpers, and legacy alias precedence (fast, no Redis needed). |
+| Command                              | Purpose                                                                                                                                                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cargo test --test config_test`      | Validates configuration parsing, defaults, schema-backed helpers, and legacy alias precedence (fast, no Redis needed).                                                                                            |
 | `cargo test --test integration_test` | Spins up the server, exercises HTTP/WebSocket/ACL behavior against a real Redis instance, and enforces request-size limits. Requires permission to bind ephemeral ports and connect to Redis on `127.0.0.1:6379`. |
 
 Integration tests spawn a temporary configuration per case, so they can run in parallel. If your environment restricts binding to random localhost ports, run the integration suite in a sandbox that allows it.

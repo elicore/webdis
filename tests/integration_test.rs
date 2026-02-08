@@ -14,8 +14,6 @@
 use reqwest::Client;
 use std::process::{Child, Command};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 use tokio::time::sleep;
 
 use std::io::Write;
@@ -42,7 +40,7 @@ struct TestServer {
 impl TestServer {
     /// Creates a new test server with default configuration.
     ///
-    /// This is a convenience wrapper around `new_with_limit(None)`. 
+    /// This is a convenience wrapper around `new_with_limit(None)`.
     async fn new() -> Self {
         Self::new_with_limit(None).await
     }
@@ -197,7 +195,7 @@ async fn test_json_output() {
     let client = Client::new();
 
     // SET JSON
-    let json_val = r#"{"a":1,"b":"c"}"
+    let json_val = r#"{"a":1,"b":"c"}"#;
     let _ = client
         .get(&format!(
             "http://127.0.0.1:{}/SET/json_key/{}",
@@ -267,8 +265,76 @@ async fn test_acl_restrictions() {
     assert_ne!(resp.status(), reqwest::StatusCode::FORBIDDEN);
 }
 
-/// Tests WebSocket command execution.
-///
-/// This test validates:
-/// - WebSocket connections can be established to `/.json` endpoint
-/// - Commands can be sent as JSON arrays: `[
+/// Tests ETag support for efficient client-side caching.
+#[tokio::test]
+async fn test_etag_support() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // 1. SET a value
+    let _ = client
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/etag_key/foo",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    // 2. GET the value and check for ETag
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/GET/etag_key", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert!(resp.status().is_success());
+    let etag = resp
+        .headers()
+        .get("ETag")
+        .expect("ETag header missing")
+        .clone();
+
+    // 3. GET again with If-None-Match
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/GET/etag_key", server.port))
+        .header("If-None-Match", etag.clone())
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::NOT_MODIFIED);
+    let body_text = resp.text().await.unwrap();
+    assert!(body_text.is_empty());
+
+    // 4. Update the value
+    let _ = client
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/etag_key/bar",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    // 5. GET again, ETag should be different
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/GET/etag_key", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert!(resp.status().is_success());
+    let new_etag = resp.headers().get("ETag").expect("ETag header missing");
+    assert_ne!(etag, new_etag);
+
+    // 6. Old ETag should return 200
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/GET/etag_key", server.port))
+        .header("If-None-Match", etag)
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+}
