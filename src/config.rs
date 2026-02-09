@@ -15,6 +15,11 @@ pub struct Config {
     pub redis_host: String,
     #[serde(default = "default_redis_port")]
     pub redis_port: u16,
+    /// Optional filesystem path to a Redis UNIX-domain socket.
+    ///
+    /// When set, Webdis will prefer connecting over the socket regardless of
+    /// `redis_host` / `redis_port`. TLS (`ssl`) does not apply to UNIX sockets.
+    pub redis_socket: Option<String>,
     #[serde(default = "default_http_host")]
     pub http_host: String,
     #[serde(default = "default_http_port")]
@@ -165,6 +170,7 @@ impl Default for Config {
         Self {
             redis_host: default_redis_host(),
             redis_port: default_redis_port(),
+            redis_socket: None,
             http_host: default_http_host(),
             http_port: default_http_port(),
             http_threads: Some(DEFAULT_HTTP_THREADS),
@@ -209,6 +215,7 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "$schema",
     "redis_host",
     "redis_port",
+    "redis_socket",
     "redis_auth",
     "http_host",
     "http_port",
