@@ -1,6 +1,8 @@
 use crate::acl::Acl;
 use crate::format::OutputFormat;
 use crate::redis::RedisPool;
+use crate::resp; // Added resp module
+use axum::body::Body; // Added Body
 use axum::extract::ConnectInfo;
 use axum::{
     extract::{Path, State},
@@ -211,62 +213,84 @@ async fn process_request(
 
     let mut response = match result {
         Ok(val) => {
-            let mut json_val = redis_value_to_json(val);
+            if matches!(format, OutputFormat::Raw) {
+                // Raw mode: convert directly to RESP (Redis Serialization Protocol) bytes.
+                // This bypasses the JSON conversion and returns the exact wire protocol representation
+                // expected by Redis clients.
+                let bytes = resp::value_to_resp(&val);
+                Response::builder()
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body(Body::from(bytes))
+                    .unwrap()
+            } else {
+                let mut json_val = redis_value_to_json(val);
 
-            // Special handling for INFO command to return structured JSON
-            if (cmd_name.eq_ignore_ascii_case("INFO")
-                || (cmd_name.eq_ignore_ascii_case("CLUSTER")
-                    && args
-                        .get(0)
-                        .map_or(false, |a| a.eq_ignore_ascii_case("INFO"))))
-                && json_val.is_string()
-            {
-                if let Some(s) = json_val.as_str() {
-                    json_val = parse_info_output(s);
-                }
-            }
-
-            // Compute ETag for GET requests (body is None)
-            let etag = if body.is_none() {
-                let mut hasher = Sha1::new();
-                hasher.update(cmd_name.as_bytes());
-                for arg in &args {
-                    hasher.update(arg.as_bytes());
-                }
-                // Use the string representation of json_val for stable hashing
-                hasher.update(json_val.to_string().as_bytes());
-                let tag = format!("\"{:x}\"", hasher.finalize());
-
-                if let Some(if_none_match) = headers
-                    .get(header::IF_NONE_MATCH)
-                    .and_then(|h| h.to_str().ok())
+                // Special handling for INFO command to return structured JSON
+                if (cmd_name.eq_ignore_ascii_case("INFO")
+                    || (cmd_name.eq_ignore_ascii_case("CLUSTER")
+                        && args
+                            .get(0)
+                            .map_or(false, |a| a.eq_ignore_ascii_case("INFO"))))
+                    && json_val.is_string()
                 {
-                    if if_none_match == tag {
-                        let mut resp = StatusCode::NOT_MODIFIED.into_response();
-                        resp.headers_mut()
-                            .insert(header::ETAG, tag.parse().unwrap());
-                        resp.headers_mut()
-                            .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-                        return resp;
+                    if let Some(s) = json_val.as_str() {
+                        json_val = parse_info_output(s);
                     }
                 }
-                Some(tag)
-            } else {
-                None
-            };
 
-            let mut resp = format.format_response(cmd_name, json_val, callback);
-            if let Some(tag) = etag {
-                resp.headers_mut()
-                    .insert(header::ETAG, tag.parse().unwrap());
+                // Compute ETag for GET requests (body is None)
+                let etag = if body.is_none() {
+                    let mut hasher = Sha1::new();
+                    hasher.update(cmd_name.as_bytes());
+                    for arg in &args {
+                        hasher.update(arg.as_bytes());
+                    }
+                    // Use the string representation of json_val for stable hashing
+                    hasher.update(json_val.to_string().as_bytes());
+                    let tag = format!("\"{:x}\"", hasher.finalize());
+
+                    if let Some(if_none_match) = headers
+                        .get(header::IF_NONE_MATCH)
+                        .and_then(|h| h.to_str().ok())
+                    {
+                        if if_none_match == tag {
+                            let mut resp = StatusCode::NOT_MODIFIED.into_response();
+                            resp.headers_mut()
+                                .insert(header::ETAG, tag.parse().unwrap());
+                            resp.headers_mut()
+                                .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+                            return resp;
+                        }
+                    }
+                    Some(tag)
+                } else {
+                    None
+                };
+
+                let mut resp = format.format_response(cmd_name, json_val, callback);
+                if let Some(tag) = etag {
+                    resp.headers_mut()
+                        .insert(header::ETAG, tag.parse().unwrap());
+                }
+                resp
             }
-            resp
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        )
-            .into_response(),
+        Err(e) => {
+            if matches!(format, OutputFormat::Raw) {
+                // Raw Error: -ERR message
+                let err_msg = format!("-ERR {}\r\n", e);
+                Response::builder()
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body(Body::from(err_msg))
+                    .unwrap()
+            } else {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": e.to_string()})),
+                )
+                    .into_response()
+            }
+        }
     };
 
     // Add CORS headers to every response
