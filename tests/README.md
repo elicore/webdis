@@ -142,6 +142,7 @@ test_my_feature
 **Rust tests:**
 
 - Redis running on `localhost:6379`
+- For `redis_socket` integration tests: either `redis-server` available on `PATH` (preferred) or Docker available to launch a temporary Redis container that exposes a UNIX socket via a bind mount.
 - Rust dependencies (auto-installed by cargo)
 
 **Shell tests:**
