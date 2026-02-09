@@ -5,13 +5,8 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.49", features = ["full"] }
-# Axum 0.8 introduces several breaking changes, including Utf8Bytes for WebSocket messages
-# and a new routing syntax {*wildcard} for path segments starting with '*'.
 axum = { version = "0.8", features = ["ws"] }
-
-# redis 0.32.x implements many RESP3 features and renames several Value variants (e.g., Data -> BulkString).
-# Version is pinned to match the re-export from deadpool-redis and ensure API consistency.
-redis = { version = "0.32.7", features = [
+redis = { version = "1.0.3", features = [
     "tokio-comp",
     "connection-manager",
     "tokio-native-tls-comp",
