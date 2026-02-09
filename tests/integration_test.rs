@@ -436,8 +436,6 @@ async fn test_raw_mode_parity() {
     let body = resp.text().await.expect("Failed to read body");
     // Expecting array of 2 bulk strings
     // *2\r\n$1\r\na\r\n$1\r\nb\r\n
-    // Order might be a bit tricky if concurrent tests run? No, each test uses server.port.
-    // And list is usually ordered by push.
     assert_eq!(body, "*2\r\n$1\r\na\r\n$1\r\nb\r\n");
 
     // 5. Raw error response (Unknown Command)
@@ -447,23 +445,39 @@ async fn test_raw_mode_parity() {
         .await
         .expect("Failed to send request");
 
-    // We expect successful *connection* but the body contains the RESP error.
-    // The HTTP status code for errors in raw mode:
-    // With current implementation, unknown command likely returns 404 or 400.
-    // If we want raw parity, maybe we should return 200 with -ERR body.
-    // But let's see what happens.
-    // For now, I'll assertion on body content mainly.
-    // IF the server returns 4xx/5xx, `resp.status().is_success()` will fail.
-    // I'll check body regardless of status for now.
-
-    // Actually, let's just assert on the body content being a RESP error.
-    // If status is not 200, we can accept that too, as long as body is right.
-    // But typically raw mode implies the body IS the protocol.
-
     let body = resp.text().await.expect("Failed to read body");
     assert!(
         body.starts_with("-ERR"),
         "Body should start with -ERR, got: {}",
         body
     );
+}
+
+/// Tests that the INFO command returns a structured JSON object.
+///
+/// This test validates:
+/// - The response for INFO is a JSON object, not a string.
+/// - The object contains expected Redis performance metrics and version info.
+#[tokio::test]
+async fn test_info_command() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/INFO", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+
+    // INFO response should now be a structured object
+    assert!(body["INFO"].is_object());
+
+    // Check for some common keys in INFO output
+    let info = body["INFO"].as_object().unwrap();
+    assert!(info.contains_key("redis_version"));
+    assert!(info.contains_key("uptime_in_seconds"));
+    assert!(info.contains_key("used_memory"));
 }
