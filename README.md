@@ -132,7 +132,7 @@ The `INFO` command output is automatically parsed into a structured JSON object 
 
 Other formats:
 
-- `.raw` or `?type=raw` – plain-text representation (useful for CLI/debugging).
+- `.raw` or `?type=raw` – raw Redis Protocol (RESP) output (useful for debugging or RESP clients).
 - `.msg` / `.msgpack` or `?type=msg` / `?type=msgpack` – MessagePack (`application/x-msgpack`).
 
 ### File upload
