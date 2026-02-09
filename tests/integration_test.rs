@@ -19,6 +19,31 @@ use tokio::time::sleep;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
+/// Parses a JSONP response body in the form `<callback>(<json>)`.
+///
+/// This intentionally performs minimal validation, matching Webdis' permissive JSONP behavior:
+/// we only require a single wrapping `(` ... `)` pair and then parse the enclosed JSON.
+fn parse_jsonp_body(body: &str) -> (&str, serde_json::Value) {
+    let open = body
+        .find('(')
+        .unwrap_or_else(|| panic!("Expected '(' in JSONP body, got: {body:?}"));
+    let close = body
+        .rfind(')')
+        .unwrap_or_else(|| panic!("Expected ')' in JSONP body, got: {body:?}"));
+    assert_eq!(
+        close,
+        body.len() - 1,
+        "Expected JSONP body to end with ')', got: {body:?}"
+    );
+
+    let callback = &body[..open];
+    let json_str = &body[open + 1..close];
+    let json: serde_json::Value =
+        serde_json::from_str(json_str).expect("Expected valid JSON inside JSONP wrapper");
+
+    (callback, json)
+}
+
 /// Test server instance that manages a Webdis process for integration testing.
 ///
 /// This struct handles:
@@ -216,6 +241,180 @@ async fn test_json_output() {
     // Redis stores JSON as a string, so Webdis returns it as-is
     // This matches the behavior of the original C implementation
     assert_eq!(body["GET"], json_val);
+}
+
+/// Tests JSONP support via the `jsonp` query parameter for JSON responses.
+#[tokio::test]
+async fn test_jsonp_simple_get() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // SET hello -> world
+    let _ = client
+        .get(&format!("http://127.0.0.1:{}/SET/hello/world", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    // GET hello as JSONP
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/GET/hello?jsonp=myFn",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .expect("Content-Type header missing")
+        .to_str()
+        .expect("Invalid Content-Type header value");
+    assert!(
+        content_type.starts_with("application/javascript"),
+        "Expected application/javascript, got: {content_type}"
+    );
+
+    let body = resp.text().await.expect("Failed to read body");
+    let (cb, json) = parse_jsonp_body(&body);
+    assert_eq!(cb, "myFn");
+    assert_eq!(json["GET"], "world");
+}
+
+/// Tests JSONP support via the `callback` query parameter (fallback).
+#[tokio::test]
+async fn test_jsonp_callback_fallback() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // SET hello -> world
+    let _ = client
+        .get(&format!("http://127.0.0.1:{}/SET/hello/world", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/GET/hello?callback=cb",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .expect("Content-Type header missing")
+        .to_str()
+        .expect("Invalid Content-Type header value");
+    assert!(
+        content_type.starts_with("application/javascript"),
+        "Expected application/javascript, got: {content_type}"
+    );
+
+    let body = resp.text().await.expect("Failed to read body");
+    let (cb, json) = parse_jsonp_body(&body);
+    assert_eq!(cb, "cb");
+    assert_eq!(json["GET"], "world");
+}
+
+/// Tests that JSON error payloads are wrapped in JSONP when requested.
+#[tokio::test]
+async fn test_jsonp_with_errors() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // Make a non-numeric key and then INCR it to trigger a Redis error.
+    let _ = client
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/non_numeric_key/not_a_number",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/INCR/non_numeric_key?jsonp=myFn",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+        "Expected Redis INCR error to map to 500"
+    );
+
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .expect("Content-Type header missing")
+        .to_str()
+        .expect("Invalid Content-Type header value");
+    assert!(
+        content_type.starts_with("application/javascript"),
+        "Expected application/javascript, got: {content_type}"
+    );
+
+    let body = resp.text().await.expect("Failed to read body");
+    let (cb, json) = parse_jsonp_body(&body);
+    assert_eq!(cb, "myFn");
+    assert!(
+        json.get("error").and_then(|v| v.as_str()).is_some(),
+        "Expected an error string payload, got: {json:?}"
+    );
+}
+
+/// Tests that JSONP is ignored for non-JSON formats like `.raw`.
+#[tokio::test]
+async fn test_jsonp_ignored_on_raw() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // SET hello -> world
+    let _ = client
+        .get(&format!("http://127.0.0.1:{}/SET/hello/world", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/GET/hello.raw?jsonp=myFn",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .expect("Content-Type header missing")
+        .to_str()
+        .expect("Invalid Content-Type header value");
+    assert!(
+        content_type.starts_with("text/plain"),
+        "Expected text/plain, got: {content_type}"
+    );
+
+    let body = resp.text().await.expect("Failed to read body");
+    assert_eq!(body, "$5\r\nworld\r\n");
+    assert!(
+        !body.starts_with("myFn("),
+        "Raw response must not be JSONP-wrapped"
+    );
 }
 
 /// Tests Access Control List (ACL) enforcement.

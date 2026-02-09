@@ -1,5 +1,5 @@
 use crate::acl::Acl;
-use crate::format::OutputFormat;
+use crate::format::{json_value_response, select_jsonp_callback, OutputFormat};
 use crate::redis::RedisPool;
 use crate::resp; // Added resp module
 use axum::body::Body; // Added Body
@@ -7,7 +7,7 @@ use axum::extract::ConnectInfo;
 use axum::{
     extract::{Path, State},
     http::{header, HeaderMap, StatusCode},
-    response::{IntoResponse, Json, Response},
+    response::{IntoResponse, Response},
 };
 use deadpool_redis::redis::{cmd, Value as RedisValue};
 use serde_json::{json, Value};
@@ -136,25 +136,17 @@ async fn process_request(
     auth_header: Option<String>,
     headers: HeaderMap,
 ) -> Response {
-    let mut conn = match state.pool.get().await {
-        Ok(conn) => conn,
-        Err(e) => {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"error": e.to_string()})),
-            )
-                .into_response()
-        }
-    };
-
     // Parse the command path (e.g., "GET/hello")
     let parts: Vec<&str> = command.split('/').collect();
     if parts.is_empty() {
-        return (
+        // No meaningful command means we can't select a non-JSON output format.
+        // Still honor JSONP on the default JSON response when requested.
+        let jsonp = select_jsonp_callback(&params);
+        return json_value_response(
             StatusCode::BAD_REQUEST,
-            Json(json!({"error": "Empty command"})),
-        )
-            .into_response();
+            json!({"error": "Empty command"}),
+            jsonp,
+        );
     }
 
     let mut cmd_name = parts[0];
@@ -190,6 +182,12 @@ async fn process_request(
         format = OutputFormat::from_extension(type_param);
     }
 
+    // JSONP is HTTP-only and applies only to JSON output.
+    // For non-JSON formats (.raw, .msg/.msgpack, or ?type=raw/msg), ignore `jsonp`/`callback`.
+    let jsonp_callback = matches!(format, OutputFormat::Json)
+        .then(|| select_jsonp_callback(&params))
+        .flatten();
+
     // Append body as the last argument if present
     if let Some(body_bytes) = body.as_ref() {
         if !body_bytes.is_empty() {
@@ -199,8 +197,24 @@ async fn process_request(
 
     // Check ACL
     if !state.acl.check(addr.ip(), cmd_name, auth_header.as_deref()) {
-        return (StatusCode::FORBIDDEN, Json(json!({"error": "Forbidden"}))).into_response();
+        return json_value_response(
+            StatusCode::FORBIDDEN,
+            json!({"error": "Forbidden"}),
+            jsonp_callback,
+        );
     }
+
+    let mut conn = match state.pool.get().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            // Preserve status codes, but wrap the JSON error payload when JSONP is requested.
+            return json_value_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                json!({"error": e.to_string()}),
+                jsonp_callback,
+            );
+        }
+    };
 
     let mut redis_cmd = cmd(cmd_name);
     for arg in &args {
@@ -208,8 +222,6 @@ async fn process_request(
     }
 
     let result: Result<RedisValue, _> = redis_cmd.query_async(&mut conn).await;
-
-    let callback = params.get("callback").cloned();
 
     let mut response = match result {
         Ok(val) => {
@@ -245,6 +257,9 @@ async fn process_request(
                     for arg in &args {
                         hasher.update(arg.as_bytes());
                     }
+                    if let Some(cb) = jsonp_callback {
+                        hasher.update(cb.as_bytes());
+                    }
                     // Use the string representation of json_val for stable hashing
                     hasher.update(json_val.to_string().as_bytes());
                     let tag = format!("\"{:x}\"", hasher.finalize());
@@ -267,7 +282,8 @@ async fn process_request(
                     None
                 };
 
-                let mut resp = format.format_response(cmd_name, json_val, callback);
+                // Note: ETag must vary by JSONP callback, since the response body changes.
+                let mut resp = format.format_response(cmd_name, json_val, jsonp_callback);
                 if let Some(tag) = etag {
                     resp.headers_mut()
                         .insert(header::ETAG, tag.parse().unwrap());
@@ -284,11 +300,11 @@ async fn process_request(
                     .body(Body::from(err_msg))
                     .unwrap()
             } else {
-                (
+                json_value_response(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": e.to_string()})),
+                    json!({"error": e.to_string()}),
+                    jsonp_callback,
                 )
-                    .into_response()
             }
         }
     };

@@ -128,6 +128,19 @@ curl http://127.0.0.1:7379/INCR/y
 # -> {"INCR":42}
 ```
 
+JSONP is supported for HTTP JSON responses via the `jsonp` (preferred) or `callback` query parameters:
+
+```sh
+curl "http://127.0.0.1:7379/GET/y?jsonp=myFn"
+# -> myFn({"GET":"41"})
+```
+
+- If both `jsonp` and `callback` are present, `jsonp` takes precedence.
+- Callback function names are passed through unchanged (minimal validation).
+- JSONP responses use `Content-Type: application/javascript; charset=utf-8`.
+- JSONP is ignored for non-JSON formats (`.raw`, `.msg`/`.msgpack`, `?type=raw`, `?type=msg`).
+- Error responses preserve their HTTP status code, but the JSON error payload is still wrapped when JSONP is requested.
+
 The `INFO` command output is automatically parsed into a structured JSON object for easier programmatic inspection, rather than returning the raw multi-line string. This behavior also applies to `CLUSTER INFO`.
 
 Other formats:
