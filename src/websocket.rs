@@ -7,8 +7,8 @@ use axum::{
     },
     response::Response,
 };
-use deadpool_redis::redis::{cmd, Value as RedisValue};
 use futures::{sink::SinkExt, stream::StreamExt};
+use redis::{cmd, Value as RedisValue};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 

@@ -12,8 +12,8 @@
 //! dynamically allocated ports to avoid conflicts.
 
 use reqwest::Client;
-use std::process::{Child, Command};
 use std::process::Stdio;
+use std::process::{Child, Command};
 use std::sync::Once;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -155,7 +155,10 @@ impl Drop for RedisUnixSocketServer {
                 let _ = child.kill();
             }
             RedisUnixSocketServerKind::Docker { container_id } => {
-                let _ = Command::new("docker").arg("stop").arg(container_id).output();
+                let _ = Command::new("docker")
+                    .arg("stop")
+                    .arg(container_id)
+                    .output();
             }
         }
     }
@@ -712,7 +715,11 @@ async fn test_binary_content_type_png_roundtrip() {
     assert_eq!(content_type, "image/png");
 
     let body = resp.bytes().await.expect("Failed to read body bytes");
-    assert_eq!(&body[..], &png_bytes[..], "PNG bytes must roundtrip unchanged");
+    assert_eq!(
+        &body[..],
+        &png_bytes[..],
+        "PNG bytes must roundtrip unchanged"
+    );
 }
 
 /// Tests `?type=<mime>` override behavior.

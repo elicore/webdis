@@ -3,7 +3,7 @@
 //! This module provides utilities to convert Redis values back to RESP frames
 //! and to parse incoming raw RESP commands from a byte buffer.
 
-use deadpool_redis::redis::Value;
+use redis::Value;
 use std::io::{BufRead, Cursor, Read};
 
 /// Errors that can occur during RESP parsing.

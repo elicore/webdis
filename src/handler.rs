@@ -11,7 +11,7 @@ use axum::{
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use deadpool_redis::redis::{cmd, Value as RedisValue};
+use redis::{cmd, Value as RedisValue};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -464,4 +464,3 @@ fn redis_value_to_bytes(v: RedisValue) -> Option<Vec<u8>> {
         _ => None,
     }
 }
-

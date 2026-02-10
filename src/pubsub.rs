@@ -22,7 +22,7 @@ enum Command {
 }
 
 impl PubSubManager {
-    pub fn new(client: deadpool_redis::redis::Client) -> Self {
+    pub fn new(client: redis::Client) -> Self {
         let (cmd_tx, mut cmd_rx) = mpsc::channel(100);
         let channels: Arc<RwLock<HashMap<String, broadcast::Sender<String>>>> =
             Arc::new(RwLock::new(HashMap::new()));
