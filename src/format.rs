@@ -125,6 +125,36 @@ impl OutputFormat {
                 });
                 json_value_response(StatusCode::OK, response, jsonp_callback)
             }
+            OutputFormat::Raw => {
+                // Legacy raw formatter (text/plain).
+                //
+                // Note: the HTTP handler's `.raw` path returns RESP bytes directly. This formatter
+                // is kept for parity with previous code and for any future callers that want a
+                // plain-text representation of the JSON value.
+                let body = match value {
+                    Value::String(s) => s,
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    Value::Null => "".to_string(),
+                    Value::Array(arr) => {
+                        let strings: Vec<String> = arr
+                            .iter()
+                            .map(|v| match v {
+                                Value::String(s) => s.clone(),
+                                Value::Number(n) => n.to_string(),
+                                Value::Bool(b) => b.to_string(),
+                                _ => "".to_string(),
+                            })
+                            .collect();
+                        strings.join("\n")
+                    }
+                    _ => value.to_string(),
+                };
+                Response::builder()
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body(Body::from(body))
+                    .unwrap()
+            }
             OutputFormat::MessagePack => {
                 let response = json!({
                     command: value
@@ -135,10 +165,12 @@ impl OutputFormat {
                     .body(Body::from(body))
                     .unwrap()
             }
-            // `Raw` and `Text` responses are built from the raw Redis reply bytes in the handler.
-            OutputFormat::Raw | OutputFormat::Text => {
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "invalid output format for JSON formatter"}))).into_response()
-            }
+            // `Text` responses are built from the raw Redis reply bytes in the handler.
+            OutputFormat::Text => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "invalid output format for JSON formatter"})),
+            )
+                .into_response(),
         }
     }
 }
