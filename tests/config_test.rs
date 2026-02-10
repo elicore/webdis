@@ -15,6 +15,7 @@ use webdis::config::{
     Config, DEFAULT_HTTP_MAX_REQUEST_SIZE, DEFAULT_HTTP_THREADS, DEFAULT_POOL_SIZE_PER_THREAD,
     DEFAULT_VERBOSITY,
 };
+use webdis::redis;
 
 /// Tests in this module may temporarily set process-wide environment variables.
 ///
@@ -243,5 +244,86 @@ fn test_env_var_expansion_missing_var_fails() {
     assert!(
         msg.contains("logfile"),
         "error should mention the config key path, got: {msg}"
+    );
+}
+
+/// The `redis_socket` field is parsed when present.
+#[test]
+fn test_redis_socket_parses() {
+    let config_json = r#"{
+        "redis_socket": "/tmp/redis.sock"
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert_eq!(config.redis_socket.as_deref(), Some("/tmp/redis.sock"));
+}
+
+/// Env-var expansion works for `redis_socket` paths (like any other string field).
+#[test]
+fn test_redis_socket_env_var_expansion_works() {
+    let _guard = ENV_LOCK.lock().unwrap();
+
+    std::env::set_var("REDIS_SOCKET", "/tmp/redis.sock");
+
+    let config_json = r#"{
+        "redis_socket": "$REDIS_SOCKET"
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert_eq!(config.redis_socket.as_deref(), Some("/tmp/redis.sock"));
+}
+
+/// When both `redis_socket` and TCP settings are provided, `redis_socket` takes precedence.
+///
+/// We validate this by asserting we fail fast due to the socket path, even if TCP
+/// fields are present (i.e., we don't attempt to interpret host/port instead).
+#[test]
+fn test_redis_socket_precedence_over_tcp() {
+    let config_json = r#"{
+        "redis_host": "127.0.0.1",
+        "redis_port": 6379,
+        "redis_socket": "/path/that/does/not/exist.sock"
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    let err = redis::create_pool(&config).expect_err("expected invalid redis_socket to fail fast");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("redis_socket"),
+        "error should mention redis_socket, got: {msg}"
+    );
+}
+
+/// TLS settings are rejected when `redis_socket` is used (TLS does not apply to UNIX sockets).
+#[test]
+fn test_redis_socket_rejects_ssl() {
+    let config_json = r#"{
+        "redis_socket": "/tmp/redis.sock",
+        "ssl": {
+            "enabled": true,
+            "ca_cert_bundle": "ca.pem",
+            "client_cert": "cert.pem",
+            "client_key": "key.pem"
+        }
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    let err = redis::create_pool(&config).expect_err("expected ssl+redis_socket to be rejected");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("ssl is not supported with redis_socket"),
+        "error should explain ssl/socket incompatibility, got: {msg}"
     );
 }

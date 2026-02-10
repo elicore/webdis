@@ -236,6 +236,7 @@ Example:
 | `$schema`               | Path or URL to this schema file so editors can enable validation.                       | Yes      | string           | `./webdis.schema.json`         |
 | `redis_host`            | Hostname or IP address of the target Redis server.                                      | Yes      | string           | `127.0.0.1`                    |
 | `redis_port`            | TCP port of the target Redis server.                                                    | Yes      | integer          | `6379`                         |
+| `redis_socket`          | Filesystem path to a Redis UNIX socket. When set, takes precedence over host/port. TLS is not applicable. | Yes | string | _unset_ |
 | `redis_auth`            | Authentication parameters passed to Redis (string password or `[username, password]`).  | Yes      | string / array   | _unset_                        |
 | `http_host`             | Interface Webdis binds to for HTTP traffic.                                             | Yes      | string           | `0.0.0.0`                      |
 | `http_port`             | Port Webdis listens on.                                                                 | Yes      | integer          | `7379`                         |

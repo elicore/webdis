@@ -22,6 +22,11 @@
       "maximum": 65535,
       "default": 6379
     },
+    "redis_socket": {
+      "type": "string",
+      "description": "Filesystem path to a Redis UNIX-domain socket. When set, Webdis prefers this over redis_host/redis_port. TLS (ssl) is not applicable to UNIX sockets.",
+      "minLength": 1
+    },
     "redis_auth": {
       "description": "Authentication parameters passed to Redis. Use a password string for Redis < 6 or an array of [username, password] for ACL-based auth.",
       "oneOf": [
