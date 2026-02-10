@@ -12,8 +12,8 @@ use std::io::Write;
 use std::sync::Mutex;
 
 use webdis::config::{
-    Config, DEFAULT_HTTP_MAX_REQUEST_SIZE, DEFAULT_HTTP_THREADS, DEFAULT_POOL_SIZE_PER_THREAD,
-    DEFAULT_VERBOSITY,
+    Config, LogFsync, LogFsyncMode, DEFAULT_HTTP_MAX_REQUEST_SIZE, DEFAULT_HTTP_THREADS,
+    DEFAULT_POOL_SIZE_PER_THREAD, DEFAULT_VERBOSITY,
 };
 use webdis::redis;
 
@@ -343,4 +343,43 @@ fn test_hiredis_keep_alive_sec_parses() {
         config.hiredis.as_ref().and_then(|h| h.keep_alive_sec),
         Some(15)
     );
+}
+
+
+/// The legacy `log_fsync` option parses string modes (`auto`, `all`).
+#[test]
+fn test_log_fsync_parses_modes() {
+    let config_json = r#"{
+  "log_fsync": "auto"
+}"#;
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert!(matches!(
+        config.log_fsync,
+        Some(LogFsync::Mode(LogFsyncMode::Auto))
+    ));
+
+    let config_json = r#"{
+  "log_fsync": "all"
+}"#;
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert!(matches!(
+        config.log_fsync,
+        Some(LogFsync::Mode(LogFsyncMode::All))
+    ));
+}
+
+/// The legacy `log_fsync` option parses an integer millisecond interval.
+#[test]
+fn test_log_fsync_parses_millis() {
+    let config_json = r#"{
+  "log_fsync": 25
+}"#;
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert!(matches!(config.log_fsync, Some(LogFsync::Millis(25))));
 }

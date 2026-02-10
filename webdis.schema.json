@@ -228,17 +228,20 @@
       }
     },
     "logFsync": {
-      "description": "Controls how aggressively Webdis fsyncs its logs.",
+      "description": "Controls how aggressively Webdis fsyncs its logs. \"all\" can be very expensive.",
       "oneOf": [
         {
           "type": "string",
-          "enum": ["auto", "all"],
-          "description": "Named fsync policies."
+          "enum": [
+            "auto",
+            "all"
+          ],
+          "description": "Named fsync policies (\"auto\" = no explicit fsync, \"all\" = fsync after each log write)."
         },
         {
           "type": "integer",
           "minimum": 0,
-          "description": "Fsync interval in milliseconds."
+          "description": "Fsync interval in milliseconds (fsync at most once per interval)."
         }
       ]
     }

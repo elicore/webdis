@@ -303,7 +303,7 @@ Example:
 | `default_root`          | Redis command executed when `/` is requested, e.g. `/GET/index.html`.                   | Yes      | string           | _unset_                        |
 | `verbosity`             | Logging verbosity level (`0 = error`, `4 = debug`, `>=5 = trace`).                      | Yes      | integer          | `4`                            |
 | `logfile`               | Path to the log file; stdout/stderr are used when unset.                                | Yes      | string           | _unset_                        |
-| `log_fsync`             | Controls how aggressively Webdis fsyncs its logs (`auto`, `all`, or milliseconds).      | Yes      | string / integer | _unset_                        |
+| `log_fsync`             | Controls log fsync behavior: `auto` = no explicit fsync, `all` = fsync after each log write (expensive), or an integer `N` = fsync at most once per `N` ms. | Yes | string / integer | _unset_ |
 | `hiredis`               | Legacy Hiredis keep-alive settings kept for compatibility. `keep_alive_sec` tunes TCP keep-alive for Redis TCP/TLS connections (not UNIX sockets). | Yes | object | _unset_ |
 
 ### Nested structures
