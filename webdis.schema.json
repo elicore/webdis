@@ -145,12 +145,12 @@
     },
     "hiredis": {
       "type": "object",
-      "description": "Legacy Hiredis keep-alive settings kept for compatibility; currently ignored by the Rust server.",
+      "description": "Legacy Hiredis keep-alive settings kept for compatibility. When keep_alive_sec is set, Webdis configures TCP keep-alive on Redis TCP/TLS connections. This does not apply to UNIX sockets (redis_socket).",
       "properties": {
         "keep_alive_sec": {
           "type": "integer",
           "minimum": 1,
-          "description": "Interval passed to redisEnableKeepAliveWithInterval in the legacy server."
+          "description": "Keep-alive idle time (seconds) used for Redis TCP/TLS connections. The probe interval is derived as approximately keep_alive_sec / 3 when supported by the platform."
         }
       },
       "additionalProperties": false

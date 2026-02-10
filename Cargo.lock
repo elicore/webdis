@@ -488,16 +488,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deadpool-redis"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb4d00bce7a9cfd07ded19530621a7df17c4c3b1c4e8fc2262471de404ce539a"
-dependencies = [
- "deadpool",
- "redis 0.32.7",
-]
-
-[[package]]
 name = "deadpool-runtime"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1599,27 +1589,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.4",
-]
-
-[[package]]
-name = "redis"
-version = "0.32.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "014cc767fefab6a3e798ca45112bccad9c6e0e218fbd49720042716c73cfef44"
-dependencies = [
- "bytes",
- "cfg-if",
- "combine",
- "futures-util",
- "itoa",
- "num-bigint",
- "percent-encoding",
- "pin-project-lite",
- "ryu",
- "socket2",
- "tokio",
- "tokio-util",
- "url",
 ]
 
 [[package]]
@@ -2744,13 +2713,13 @@ dependencies = [
  "clap",
  "config",
  "daemonize",
- "deadpool-redis",
+ "deadpool",
  "futures",
  "futures-util",
  "hex",
  "ipnet",
  "nix",
- "redis 1.0.3",
+ "redis",
  "reqwest",
  "rmp-serde",
  "serde",

@@ -327,3 +327,20 @@ fn test_redis_socket_rejects_ssl() {
         "error should explain ssl/socket incompatibility, got: {msg}"
     );
 }
+
+/// The legacy `hiredis.keep_alive_sec` value is parsed and plumbed into Config.
+#[test]
+fn test_hiredis_keep_alive_sec_parses() {
+    let config_json = r#"{
+        "hiredis": { "keep_alive_sec": 15 }
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert_eq!(
+        config.hiredis.as_ref().and_then(|h| h.keep_alive_sec),
+        Some(15)
+    );
+}

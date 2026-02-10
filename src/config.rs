@@ -40,6 +40,12 @@ pub struct Config {
     pub ssl: Option<SslConfig>,
     pub acl: Option<Vec<AclConfig>>,
     pub redis_auth: Option<RedisAuthConfig>,
+    /// Optional Redis TCP keep-alive tuning settings for parity with the legacy Webdis.
+    ///
+    /// When `hiredis.keep_alive_sec` is set, Webdis configures TCP keep-alive on Redis
+    /// **TCP/TLS** connections it opens. This does not apply to UNIX-domain socket
+    /// connections (`redis_socket`).
+    pub hiredis: Option<HiredisConfig>,
     pub http_max_request_size: Option<usize>,
     pub user: Option<String>,
     pub group: Option<String>,
@@ -88,6 +94,18 @@ pub enum RedisAuthConfig {
     ACL(Vec<String>),
 }
 
+/// Legacy Hiredis options kept for compatibility with the original Webdis.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct HiredisConfig {
+    /// When set, enable TCP keep-alive on Redis TCP/TLS connections.
+    ///
+    /// This value is treated as the keep-alive idle time (in seconds), and is also used
+    /// to derive an approximate keep-alive probe interval (\(\mathrm{keepalive\_sec}/3\))
+    /// to match Hiredis' `redisEnableKeepAliveWithInterval` behavior as closely as
+    /// the platform allows.
+    pub keep_alive_sec: Option<u64>,
+}
+
 impl Config {
     pub fn new(config_path: &str) -> Result<Self, ConfigError> {
         // Load the config file as untyped JSON first so we can preserve Webdis' legacy
@@ -105,8 +123,9 @@ impl Config {
 
         // Re-parse via the `config` crate so it can apply its value coercions
         // (for example, parsing `"6379"` into a `u16`).
-        let expanded = serde_json::to_string(&json)
-            .map_err(|e| ConfigError::Message(format!("failed to serialize expanded config: {e}")))?;
+        let expanded = serde_json::to_string(&json).map_err(|e| {
+            ConfigError::Message(format!("failed to serialize expanded config: {e}"))
+        })?;
         let loader = ConfigLoader::builder()
             .add_source(File::from_str(&expanded, FileFormat::Json))
             .build()?;
@@ -184,6 +203,7 @@ impl Default for Config {
             ssl: None,
             acl: None,
             redis_auth: None,
+            hiredis: None,
             http_max_request_size: Some(DEFAULT_HTTP_MAX_REQUEST_SIZE),
             user: None,
             group: None,
@@ -217,6 +237,7 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "redis_port",
     "redis_socket",
     "redis_auth",
+    "hiredis",
     "http_host",
     "http_port",
     "http_threads",

@@ -4,7 +4,7 @@ This repository contains a Rust rewrite of Webdis: a lightweight HTTP/WebSocket 
 
 Key highlights:
 
-- Axum-based HTTP server with async Redis connection pooling via `deadpool-redis`
+- Axum-based HTTP server with async Redis connection pooling via `deadpool`
 - Optional WebSocket endpoint for Pub/Sub streaming
 - Drop-in compatibility with the original `webdis.json` (captured as `webdis.legacy.json`)
 - JSON schema-backed configuration with sensible defaults and editor validation
@@ -283,7 +283,7 @@ Example:
 | `verbosity`             | Logging verbosity level (`0 = error`, `4 = debug`, `>=5 = trace`).                      | Yes      | integer          | `4`                            |
 | `logfile`               | Path to the log file; stdout/stderr are used when unset.                                | Yes      | string           | _unset_                        |
 | `log_fsync`             | Controls how aggressively Webdis fsyncs its logs (`auto`, `all`, or milliseconds).      | Yes      | string / integer | _unset_                        |
-| `hiredis`               | Legacy Hiredis keep-alive settings kept for compatibility (ignored by the Rust server). | Yes      | object           | _unset_                        |
+| `hiredis`               | Legacy Hiredis keep-alive settings kept for compatibility. `keep_alive_sec` tunes TCP keep-alive for Redis TCP/TLS connections (not UNIX sockets). | Yes | object | _unset_ |
 
 ### Nested structures
 
@@ -303,7 +303,7 @@ Example:
 
 - `threads` → `http_threads` and `pool_size` → `pool_size_per_thread` remain accepted; when both the legacy and canonical keys are present, the canonical key wins.
 - `webdis.legacy.json` and `webdis.prod.json` continue to load without modification so you can upgrade deployments incrementally.
-- Legacy-only sections such as `hiredis` are parsed but ignored by the new server so they do not trigger validation errors.
+- Legacy-only sections such as `hiredis` are parsed for compatibility. `hiredis.keep_alive_sec` is honored for Redis TCP/TLS connections and ignored for UNIX sockets (`redis_socket`).
 
 ## Testing
 
