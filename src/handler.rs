@@ -1,5 +1,7 @@
 use crate::acl::Acl;
-use crate::format::{json_value_response, select_jsonp_callback, OutputFormat};
+use crate::format::{
+    content_type_for_extension, json_value_response, select_jsonp_callback, OutputFormat,
+};
 use crate::redis::RedisPool;
 use crate::resp; // Added resp module
 use axum::body::Body; // Added Body
@@ -152,48 +154,53 @@ async fn process_request(
     let mut cmd_name = parts[0];
     let mut args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
 
-    // Check for extension or query param
-    let mut format = OutputFormat::Json;
-
-    // 1. Check extension
-    if let Some(idx) = cmd_name.rfind('.') {
-        let ext = &cmd_name[idx + 1..];
-        format = OutputFormat::from_extension(ext);
-        cmd_name = &cmd_name[..idx];
-    } else if let Some(last_arg) = args.last_mut() {
+    // Parse an optional suffix from the *final path segment* (or the command name when there
+    // are no args). In Webdis, `/COMMAND/.../argN.ext` selects the output format and/or default
+    // content type, while the `argN` used for Redis is `argN` without the suffix.
+    let mut ext: Option<String> = None;
+    if let Some(last_arg) = args.last_mut() {
         if let Some(idx) = last_arg.rfind('.') {
-            let ext = &last_arg[idx + 1..].to_string();
-            // Only treat as extension if it matches a known format
-            let f = OutputFormat::from_extension(ext);
-            if !matches!(f, OutputFormat::Json) || ext == "json" {
-                format = f;
-                *last_arg = last_arg[..idx].to_string();
+            let candidate = last_arg[idx + 1..].to_ascii_lowercase();
+            let known = OutputFormat::from_extension(candidate.as_str()).is_some()
+                || content_type_for_extension(candidate.as_str()).is_some();
+            if known {
+                ext = Some(candidate);
+                last_arg.truncate(idx);
             }
+        }
+    } else if let Some(idx) = cmd_name.rfind('.') {
+        let candidate = cmd_name[idx + 1..].to_ascii_lowercase();
+        let known = OutputFormat::from_extension(candidate.as_str()).is_some()
+            || content_type_for_extension(candidate.as_str()).is_some();
+        if known {
+            ext = Some(candidate);
+            cmd_name = &cmd_name[..idx];
         }
     }
 
-    // 2. Check query param (overrides extension if present, or maybe fallback? Webdis C seems to prefer extension)
-    // Let's allow query param to override for now if extension didn't change it from default,
-    // or if we want to support ?type=raw explicitly.
-    if let Some(type_param) = params.get("type") {
-        // Map type param to format
-        // "raw" -> Raw, "json" -> Json, etc.
-        // We can reuse from_extension for simple mapping
-        format = OutputFormat::from_extension(type_param);
+    // The output format controls the response body. `?type=<mime>` is *header-only*.
+    let mut format = OutputFormat::Json;
+    if let Some(ext) = ext.as_deref() {
+        if let Some(f) = OutputFormat::from_extension(ext) {
+            format = f;
+        }
     }
 
+    // Optional content-type override (header only; does not affect payload format).
+    let content_type_override = params
+        .get("type")
+        .and_then(|s| (!s.is_empty()).then_some(s.clone()));
+    let ext_content_type = ext.as_deref().and_then(|e| content_type_for_extension(e));
+
     // JSONP is HTTP-only and applies only to JSON output.
-    // For non-JSON formats (.raw, .msg/.msgpack, or ?type=raw/msg), ignore `jsonp`/`callback`.
+    // For non-JSON formats (.raw, .msg/.msgpack, .txt/.html/.xml/.png, etc.), ignore `jsonp`/`callback`.
     let jsonp_callback = matches!(format, OutputFormat::Json)
         .then(|| select_jsonp_callback(&params))
         .flatten();
 
-    // Append body as the last argument if present
-    if let Some(body_bytes) = body.as_ref() {
-        if !body_bytes.is_empty() {
-            args.push(String::from_utf8_lossy(body_bytes).to_string());
-        }
-    }
+    // For PUT/POST requests, the HTTP body is appended as the last Redis argument.
+    // This must be passed as raw bytes to preserve binary payloads (images, etc.).
+    let body_arg = body.as_deref().filter(|b| !b.is_empty());
 
     // Check ACL
     if !state.acl.check(addr.ip(), cmd_name, auth_header.as_deref()) {
@@ -220,6 +227,9 @@ async fn process_request(
     for arg in &args {
         redis_cmd.arg(arg);
     }
+    if let Some(bytes) = body_arg {
+        redis_cmd.arg(bytes);
+    }
 
     let result: Result<RedisValue, _> = redis_cmd.query_async(&mut conn).await;
 
@@ -234,6 +244,57 @@ async fn process_request(
                     .header(header::CONTENT_TYPE, "text/plain")
                     .body(Body::from(bytes))
                     .unwrap()
+            } else if matches!(format, OutputFormat::Text) {
+                // Text/binary mode: return only the string value bytes with a MIME type
+                // implied by the suffix (.txt, .html, .png, etc.).
+                let bytes = match redis_value_to_bytes(val) {
+                    Some(b) => b,
+                    None => {
+                        return json_value_response(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            json!({"error": "Text output supports only string/binary Redis replies"}),
+                            None,
+                        );
+                    }
+                };
+
+                // Compute ETag for GET requests (body is None).
+                let etag = if body.is_none() {
+                    let mut hasher = Sha1::new();
+                    hasher.update(cmd_name.as_bytes());
+                    for arg in &args {
+                        hasher.update(arg.as_bytes());
+                    }
+                    hasher.update(&bytes);
+                    let tag = format!("\"{:x}\"", hasher.finalize());
+
+                    if let Some(if_none_match) = headers
+                        .get(header::IF_NONE_MATCH)
+                        .and_then(|h| h.to_str().ok())
+                    {
+                        if if_none_match == tag {
+                            let mut resp = StatusCode::NOT_MODIFIED.into_response();
+                            resp.headers_mut()
+                                .insert(header::ETAG, tag.parse().unwrap());
+                            resp.headers_mut()
+                                .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+                            return resp;
+                        }
+                    }
+                    Some(tag)
+                } else {
+                    None
+                };
+
+                let mut resp = Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Body::from(bytes))
+                    .unwrap();
+                if let Some(tag) = etag {
+                    resp.headers_mut()
+                        .insert(header::ETAG, tag.parse().unwrap());
+                }
+                resp
             } else {
                 let mut json_val = redis_value_to_json(val);
 
@@ -299,6 +360,13 @@ async fn process_request(
                     .header(header::CONTENT_TYPE, "text/plain")
                     .body(Body::from(err_msg))
                     .unwrap()
+            } else if matches!(format, OutputFormat::Text) {
+                // Text errors mirror the original Webdis behavior: errors are plain text.
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body(Body::from(e.to_string()))
+                    .unwrap()
             } else {
                 json_value_response(
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -313,6 +381,29 @@ async fn process_request(
     response
         .headers_mut()
         .insert("Access-Control-Allow-Origin", "*".parse().unwrap());
+
+    // Apply suffix-selected content types and/or `?type=<mime>` overrides.
+    //
+    // Precedence:
+    // 1) `?type` override (always wins)
+    // 2) JSONP content type (unless overridden)
+    // 3) Extension mapping (e.g. `.png` => `image/png`)
+    if let Some(ct) = content_type_override.as_deref() {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, ct.parse().unwrap());
+    } else if jsonp_callback.is_none() {
+        // Only apply extension-derived content types when the response didn't already
+        // define its own `Content-Type`. This avoids incorrectly overwriting error
+        // responses (e.g. JSON error bodies) with image/* content types.
+        if response.headers().get(header::CONTENT_TYPE).is_none() {
+            if let Some(ct) = ext_content_type {
+                response
+                    .headers_mut()
+                    .insert(header::CONTENT_TYPE, ct.parse().unwrap());
+            }
+        }
+    }
 
     response
 }
@@ -357,6 +448,21 @@ pub fn parse_info_output(text: &str) -> Value {
         }
     }
     Value::Object(map)
+}
+
+/// Converts a Redis reply into raw bytes suitable for "text/binary" HTTP responses.
+///
+/// This is used for suffixes like `.txt`, `.html`, `.xml`, `.png`, `.jpg`, `.jpeg` where
+/// the response body should be the stored Redis string bytes *without* JSON wrapping.
+fn redis_value_to_bytes(v: RedisValue) -> Option<Vec<u8>> {
+    match v {
+        RedisValue::Nil => Some(Vec::new()),
+        RedisValue::Int(i) => Some(i.to_string().into_bytes()),
+        RedisValue::BulkString(bytes) => Some(bytes),
+        RedisValue::SimpleString(s) => Some(s.into_bytes()),
+        RedisValue::Okay => Some(b"OK".to_vec()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

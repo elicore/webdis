@@ -114,7 +114,7 @@ The optional `.ext` suffix selects the output format (see below). Arguments shou
 - `500 Internal Server Error` – unexpected Redis or server error.
 - `503 Service Unavailable` – Redis connection pool unavailable.
 
-### JSON and other output formats
+### Output Formats
 
 JSON is the default:
 
@@ -138,19 +138,45 @@ curl "http://127.0.0.1:7379/GET/y?jsonp=myFn"
 - If both `jsonp` and `callback` are present, `jsonp` takes precedence.
 - Callback function names are passed through unchanged (minimal validation).
 - JSONP responses use `Content-Type: application/javascript; charset=utf-8`.
-- JSONP is ignored for non-JSON formats (`.raw`, `.msg`/`.msgpack`, `?type=raw`, `?type=msg`).
+- JSONP is ignored for non-JSON formats (`.raw`, `.msg`/`.msgpack`, `.txt`, `.html`, etc.).
 - Error responses preserve their HTTP status code, but the JSON error payload is still wrapped when JSONP is requested.
 
 The `INFO` command output is automatically parsed into a structured JSON object for easier programmatic inspection, rather than returning the raw multi-line string. This behavior also applies to `CLUSTER INFO`.
 
 Other formats:
 
-- `.raw` or `?type=raw` – raw Redis Protocol (RESP) output (useful for debugging or RESP clients).
-- `.msg` / `.msgpack` or `?type=msg` / `?type=msgpack` – MessagePack (`application/x-msgpack`).
+- Default (no suffix) or `.json` – JSON envelope (`application/json`).
+- `.msg` / `.msgpack` – MessagePack envelope (`application/x-msgpack`).
+- `.raw` – raw Redis Protocol (RESP) output (useful for debugging or RESP clients).
+
+Passthrough content types (for Redis string replies):
+
+- `.txt` – `text/plain`
+- `.html` – `text/html`
+- `.xhtml` – `application/xhtml+xml`
+- `.xml` – `text/xml`
+- `.png` – `image/png`
+- `.jpg` / `.jpeg` – `image/jpeg`
+
+`?type=<mime>` overrides the HTTP `Content-Type` header **without changing the body format**.
+
+Example (JSON body, overridden header):
+
+```sh
+curl "http://127.0.0.1:7379/GET/hello?type=application/pdf"
+# -> {"GET":"world"}   (but Content-Type: application/pdf)
+```
+
+Example (binary passthrough with an image extension):
+
+```sh
+curl --upload-file logo.png http://127.0.0.1:7379/SET/logo
+curl http://127.0.0.1:7379/GET/logo.png > downloaded.png
+```
 
 ### File upload
 
-`PUT` uses the HTTP body as the last argument, which is handy for sending JSON or other UTF‑8 payloads:
+`PUT` uses the HTTP body as the last argument, which is handy for sending JSON, HTML, or binary payloads:
 
 ```sh
 echo '{"a":1,"b":"c"}' > doc.json
