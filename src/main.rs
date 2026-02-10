@@ -153,9 +153,13 @@ async fn async_main(config: Config) {
     };
 
     // Create a dedicated Redis client for Pub/Sub
-    let redis_url = config.get_redis_url();
-    let pubsub_client = deadpool_redis::redis::Client::open(redis_url)
-        .expect("Failed to create Redis client for Pub/Sub");
+    let pubsub_client = match redis::create_pubsub_client(&config) {
+        Ok(client) => client,
+        Err(e) => {
+            error!("Failed to create Redis client for Pub/Sub: {}", e);
+            process::exit(1);
+        }
+    };
     let pubsub_manager = pubsub::PubSubManager::new(pubsub_client);
 
     // State management: shared pool, ACLs, and the Pub/Sub manager.

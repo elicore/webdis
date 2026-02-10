@@ -21,8 +21,7 @@ async fn setup_test_server() -> (SocketAddr, tokio::task::JoinHandle<()>) {
     config.redis_port = 6379;
 
     let pool = redis::create_pool(&config).unwrap();
-    let redis_url = config.get_redis_url();
-    let pubsub_client = deadpool_redis::redis::Client::open(redis_url).unwrap();
+    let pubsub_client = redis::create_pubsub_client(&config).unwrap();
     let pubsub_manager = pubsub::PubSubManager::new(pubsub_client);
 
     let app_state = Arc::new(handler::AppState {

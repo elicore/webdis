@@ -13,11 +13,18 @@
 
 use reqwest::Client;
 use std::process::{Child, Command};
+use std::process::Stdio;
+use std::sync::Once;
 use std::time::Duration;
 use tokio::time::sleep;
 
 use std::io::Write;
 use tempfile::NamedTempFile;
+use tempfile::TempDir;
+
+#[cfg(unix)]
+use std::os::unix::fs::FileTypeExt;
+use std::path::{Path, PathBuf};
 
 /// Parses a JSONP response body in the form `<callback>(<json>)`.
 ///
@@ -42,6 +49,151 @@ fn parse_jsonp_body(body: &str) -> (&str, serde_json::Value) {
         serde_json::from_str(json_str).expect("Expected valid JSON inside JSONP wrapper");
 
     (callback, json)
+}
+
+/// A Redis server instance that listens on a UNIX-domain socket for the duration of a test.
+///
+/// Integration tests use this to validate `redis_socket` end-to-end without relying on a
+/// preconfigured Redis instance.
+#[cfg(unix)]
+struct RedisUnixSocketServer {
+    socket_path: PathBuf,
+    _tempdir: TempDir,
+    kind: RedisUnixSocketServerKind,
+}
+
+#[cfg(unix)]
+enum RedisUnixSocketServerKind {
+    Native(Child),
+    Docker { container_id: String },
+}
+
+#[cfg(unix)]
+impl RedisUnixSocketServer {
+    async fn start() -> Self {
+        let tempdir = tempfile::tempdir().expect("failed to create temp dir for unix socket");
+        let socket_path = tempdir.path().join("redis.sock");
+
+        if command_is_available("redis-server", &["--version"]) {
+            let child = Command::new("redis-server")
+                .arg("--port")
+                .arg("0")
+                .arg("--unixsocket")
+                .arg(&socket_path)
+                .arg("--unixsocketperm")
+                .arg("700")
+                .arg("--save")
+                .arg("")
+                .arg("--appendonly")
+                .arg("no")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("failed to start redis-server");
+
+            wait_for_unix_socket(&socket_path).await;
+
+            return Self {
+                socket_path,
+                _tempdir: tempdir,
+                kind: RedisUnixSocketServerKind::Native(child),
+            };
+        }
+
+        if command_is_available("docker", &["version"]) {
+            let output = Command::new("docker")
+                .arg("run")
+                .arg("--rm")
+                .arg("-d")
+                .arg("-v")
+                .arg(format!("{}:/data", tempdir.path().display()))
+                .arg("redis:8.2-alpine")
+                .arg("redis-server")
+                .arg("--port")
+                .arg("0")
+                .arg("--unixsocket")
+                .arg("/data/redis.sock")
+                .arg("--unixsocketperm")
+                .arg("700")
+                .arg("--save")
+                .arg("")
+                .arg("--appendonly")
+                .arg("no")
+                .output()
+                .expect("failed to start redis via docker");
+
+            assert!(
+                output.status.success(),
+                "docker run failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            wait_for_unix_socket(&socket_path).await;
+
+            return Self {
+                socket_path,
+                _tempdir: tempdir,
+                kind: RedisUnixSocketServerKind::Docker { container_id },
+            };
+        }
+
+        panic!("need either redis-server or docker available to run unix socket integration tests");
+    }
+
+    fn socket_path(&self) -> &Path {
+        &self.socket_path
+    }
+}
+
+#[cfg(unix)]
+impl Drop for RedisUnixSocketServer {
+    fn drop(&mut self) {
+        match &mut self.kind {
+            RedisUnixSocketServerKind::Native(child) => {
+                let _ = child.kill();
+            }
+            RedisUnixSocketServerKind::Docker { container_id } => {
+                let _ = Command::new("docker").arg("stop").arg(container_id).output();
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+fn command_is_available(cmd: &str, args: &[&str]) -> bool {
+    Command::new(cmd)
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(unix)]
+async fn wait_for_unix_socket(path: &Path) {
+    for _ in 0..50 {
+        if let Ok(meta) = std::fs::metadata(path) {
+            if meta.file_type().is_socket() {
+                return;
+            }
+        }
+        sleep(Duration::from_millis(100)).await;
+    }
+    panic!("timed out waiting for unix socket {}", path.display());
+}
+
+static BUILD_WEBDIS_DEBUG_ONCE: Once = Once::new();
+
+fn ensure_webdis_debug_binary() {
+    BUILD_WEBDIS_DEBUG_ONCE.call_once(|| {
+        let status = Command::new("cargo")
+            .arg("build")
+            .status()
+            .expect("Failed to build project");
+        assert!(status.success());
+    });
 }
 
 /// Test server instance that manages a Webdis process for integration testing.
@@ -90,13 +242,6 @@ impl TestServer {
     /// - Cannot bind to a port
     /// - Cannot start the Webdis process
     async fn new_with_limit(limit: Option<usize>) -> Self {
-        // Build the project first to ensure binary is up to date
-        let status = Command::new("cargo")
-            .arg("build")
-            .status()
-            .expect("Failed to build project");
-        assert!(status.success());
-
         // Create a temporary config file that will be automatically deleted when dropped
         let config_file = tempfile::Builder::new()
             .suffix(".json")
@@ -150,6 +295,8 @@ impl TestServer {
         config_content: serde_json::Value,
         env: &[(&str, &str)],
     ) -> Self {
+        ensure_webdis_debug_binary();
+
         write!(config_file, "{}", config_content.to_string()).expect("Failed to write config");
 
         let port = config_content
@@ -227,6 +374,154 @@ async fn test_basic_get_set() {
     assert!(resp.status().is_success());
     let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
     assert_eq!(body["GET"], "test_value");
+}
+
+/// Connects to Redis over a UNIX-domain socket when `redis_socket` is configured.
+#[cfg(unix)]
+#[tokio::test]
+async fn test_unix_socket_basic_connectivity() {
+    let redis = RedisUnixSocketServer::start().await;
+
+    let port = {
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port");
+        listener.local_addr().unwrap().port()
+    };
+
+    let config_content = serde_json::json!({
+        "redis_socket": redis.socket_path().display().to_string(),
+        "http_host": "127.0.0.1",
+        "http_port": port,
+        "database": 0,
+        "websockets": false,
+        "daemonize": false,
+        "verbosity": 4
+    });
+
+    let config_file = tempfile::Builder::new()
+        .suffix(".json")
+        .tempfile()
+        .expect("Failed to create temp config file");
+
+    let server = TestServer::spawn_with_config_and_env(config_file, config_content, &[]).await;
+    let client = Client::new();
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/unix_socket_key/unix_socket_value",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["SET"], "OK");
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/GET/unix_socket_key",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["GET"], "unix_socket_value");
+}
+
+/// `redis_socket` takes precedence over `redis_host` / `redis_port`.
+#[cfg(unix)]
+#[tokio::test]
+async fn test_unix_socket_precedence_over_tcp() {
+    let redis = RedisUnixSocketServer::start().await;
+
+    let port = {
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port");
+        listener.local_addr().unwrap().port()
+    };
+
+    // Intentionally bogus TCP settings: if Webdis uses these, the test will fail.
+    let config_content = serde_json::json!({
+        "redis_host": "192.0.2.1",
+        "redis_port": 1,
+        "redis_socket": redis.socket_path().display().to_string(),
+        "http_host": "127.0.0.1",
+        "http_port": port,
+        "database": 0,
+        "websockets": false,
+        "daemonize": false,
+        "verbosity": 4
+    });
+
+    let config_file = tempfile::Builder::new()
+        .suffix(".json")
+        .tempfile()
+        .expect("Failed to create temp config file");
+
+    let server = TestServer::spawn_with_config_and_env(config_file, config_content, &[]).await;
+    let client = Client::new();
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/SET/unix_precedence_key/ok",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["SET"], "OK");
+}
+
+/// Invalid socket paths fail fast with a clear startup error.
+#[cfg(unix)]
+#[tokio::test]
+async fn test_unix_socket_invalid_path_fails_fast() {
+    let port = {
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port");
+        listener.local_addr().unwrap().port()
+    };
+
+    let config_content = serde_json::json!({
+        "redis_socket": "/path/that/does/not/exist.sock",
+        "http_host": "127.0.0.1",
+        "http_port": port,
+        "database": 0,
+        "websockets": false,
+        "daemonize": false,
+        "verbosity": 4
+    });
+
+    let mut config_file = tempfile::Builder::new()
+        .suffix(".json")
+        .tempfile()
+        .expect("Failed to create temp config file");
+    write!(config_file, "{}", config_content.to_string()).expect("Failed to write config");
+
+    ensure_webdis_debug_binary();
+
+    let output = Command::new("target/debug/webdis")
+        .arg(config_file.path())
+        .output()
+        .expect("Failed to run webdis");
+
+    assert!(
+        !output.status.success(),
+        "expected webdis to exit non-zero for invalid socket path"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{stdout}\n{stderr}");
+    assert!(
+        combined.contains("redis_socket"),
+        "expected error output to mention redis_socket, got:\n{combined}"
+    );
 }
 
 /// Tests env-var expansion end-to-end by starting Webdis with `$REDIS_HOST` / `$REDIS_PORT`.
