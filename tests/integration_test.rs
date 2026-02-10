@@ -18,6 +18,7 @@ use std::sync::Once;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use base64::{engine::general_purpose, Engine as _};
 use std::io::Write;
 use tempfile::NamedTempFile;
 use tempfile::TempDir;
@@ -622,6 +623,134 @@ async fn test_json_output() {
     // Redis stores JSON as a string, so Webdis returns it as-is
     // This matches the behavior of the original C implementation
     assert_eq!(body["GET"], json_val);
+}
+
+/// Tests extension-based content types for string replies.
+///
+/// Webdis supports suffixes like `.txt`, `.html`, `.xml` which:
+/// - return the Redis string value as the HTTP body (no JSON envelope), and
+/// - set `Content-Type` based on the suffix.
+#[tokio::test]
+async fn test_extension_based_text_content_types() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // SET hello -> world
+    let _ = client
+        .get(&format!("http://127.0.0.1:{}/SET/hello/world", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    for (path, expected_content_type) in [
+        ("GET/hello.txt", "text/plain"),
+        ("GET/hello.html", "text/html"),
+        ("GET/hello.xml", "text/xml"),
+    ] {
+        let resp = client
+            .get(&format!("http://127.0.0.1:{}/{path}", server.port))
+            .send()
+            .await
+            .expect("Failed to send request");
+
+        assert_eq!(resp.status(), reqwest::StatusCode::OK);
+
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .expect("Content-Type header missing")
+            .to_str()
+            .expect("Invalid Content-Type header value");
+        assert_eq!(
+            content_type, expected_content_type,
+            "Expected {expected_content_type}, got: {content_type}"
+        );
+
+        let body = resp.text().await.expect("Failed to read body");
+        assert_eq!(body, "world");
+    }
+}
+
+/// Tests binary upload and retrieval with an image extension.
+///
+/// This validates that PUT preserves bytes and `GET/key.png`:
+/// - returns the stored bytes unchanged, and
+/// - sets `Content-Type: image/png`.
+#[tokio::test]
+async fn test_binary_content_type_png_roundtrip() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // A tiny 1x1 transparent PNG.
+    let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO0X6b8AAAAASUVORK5CYII=";
+    let png_bytes = general_purpose::STANDARD
+        .decode(png_b64)
+        .expect("Failed to decode base64 PNG");
+
+    // Upload PNG bytes as the last argument of SET.
+    let resp = client
+        .put(&format!("http://127.0.0.1:{}/SET/logo", server.port))
+        .body(png_bytes.clone())
+        .send()
+        .await
+        .expect("Failed to upload PNG bytes");
+    assert!(resp.status().is_success());
+
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/GET/logo.png", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .expect("Content-Type header missing")
+        .to_str()
+        .expect("Invalid Content-Type header value");
+    assert_eq!(content_type, "image/png");
+
+    let body = resp.bytes().await.expect("Failed to read body bytes");
+    assert_eq!(&body[..], &png_bytes[..], "PNG bytes must roundtrip unchanged");
+}
+
+/// Tests `?type=<mime>` override behavior.
+///
+/// `?type` overrides the `Content-Type` header while leaving the response body
+/// unchanged (JSON envelope by default).
+#[tokio::test]
+async fn test_type_query_param_overrides_content_type_only() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    // SET hello -> world
+    let _ = client
+        .get(&format!("http://127.0.0.1:{}/SET/hello/world", server.port))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/GET/hello?type=application/pdf",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .expect("Content-Type header missing")
+        .to_str()
+        .expect("Invalid Content-Type header value");
+    assert_eq!(content_type, "application/pdf");
+
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["GET"], "world");
 }
 
 /// Tests JSONP support via the `jsonp` query parameter for JSON responses.

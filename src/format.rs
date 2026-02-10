@@ -52,25 +52,66 @@ pub fn json_value_response(
     }
 }
 
+/// Maps a request suffix (like `.json` or `.png`) to a `Content-Type` header value.
+///
+/// This mirrors the original Webdis behavior where certain filename-like extensions
+/// control the HTTP `Content-Type` while the underlying Redis payload is returned
+/// unchanged for "string" responses.
+///
+/// Note that `?type=<mime>` can still override the header at runtime (handled by
+/// the request handler).
+pub fn content_type_for_extension(ext: &str) -> Option<&'static str> {
+    match ext {
+        "json" => Some("application/json"),
+        "txt" => Some("text/plain"),
+        "html" => Some("text/html"),
+        "xhtml" => Some("application/xhtml+xml"),
+        "xml" => Some("text/xml"),
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        // Format extensions also imply a sensible default content type.
+        "msg" | "msgpack" => Some("application/x-msgpack"),
+        "raw" => Some("text/plain"),
+        _ => None,
+    }
+}
+
+/// Output format for HTTP responses.
+///
+/// This is intentionally *not* a 1:1 mapping to `Content-Type`:
+/// - The output format controls how the Redis reply is serialized into the HTTP body.
+/// - The `Content-Type` header can be selected by extension (e.g. `.png`) and/or
+///   overridden via `?type=<mime>` without changing the body.
 pub enum OutputFormat {
     Json,
+    /// Raw Redis Serialization Protocol (RESP) frames.
+    ///
+    /// This is selected by the `.raw` suffix.
     Raw,
     MessagePack,
+    /// Return only string/binary Redis replies as the HTTP body, without wrapping.
+    ///
+    /// This is selected by suffixes like `.txt`, `.html`, `.xml`, `.png`, `.jpg`, `.jpeg`.
+    /// For non-string replies, callers decide how to handle the mismatch.
+    Text,
 }
 
 impl OutputFormat {
-    pub fn from_extension(ext: &str) -> Self {
+    /// Returns the `OutputFormat` implied by a suffix, if the suffix is recognized.
+    pub fn from_extension(ext: &str) -> Option<Self> {
         match ext {
-            "raw" => OutputFormat::Raw,
-            "msg" | "msgpack" => OutputFormat::MessagePack,
-            _ => OutputFormat::Json,
+            "json" => Some(OutputFormat::Json),
+            "raw" => Some(OutputFormat::Raw),
+            "msg" | "msgpack" => Some(OutputFormat::MessagePack),
+            "txt" | "html" | "xhtml" | "xml" | "png" | "jpg" | "jpeg" => Some(OutputFormat::Text),
+            _ => None,
         }
     }
 
     /// Formats a Redis response value using the selected output format.
     ///
-    /// `jsonp_callback` is only applied to JSON output; callers should pass `None`
-    /// for non-JSON formats to preserve parity with the original Webdis behavior.
+    /// `jsonp_callback` is only applied to JSON output; callers should pass `None` for
+    /// non-JSON formats to preserve parity with the original Webdis behavior.
     pub fn format_response(
         &self,
         command: &str,
@@ -84,31 +125,6 @@ impl OutputFormat {
                 });
                 json_value_response(StatusCode::OK, response, jsonp_callback)
             }
-            OutputFormat::Raw => {
-                let body = match value {
-                    Value::String(s) => s,
-                    Value::Number(n) => n.to_string(),
-                    Value::Bool(b) => b.to_string(),
-                    Value::Null => "".to_string(),
-                    Value::Array(arr) => {
-                        let strings: Vec<String> = arr
-                            .iter()
-                            .map(|v| match v {
-                                Value::String(s) => s.clone(),
-                                Value::Number(n) => n.to_string(),
-                                Value::Bool(b) => b.to_string(),
-                                _ => "".to_string(),
-                            })
-                            .collect();
-                        strings.join("\n")
-                    }
-                    _ => value.to_string(),
-                };
-                Response::builder()
-                    .header(header::CONTENT_TYPE, "text/plain")
-                    .body(Body::from(body))
-                    .unwrap()
-            }
             OutputFormat::MessagePack => {
                 let response = json!({
                     command: value
@@ -118,6 +134,10 @@ impl OutputFormat {
                     .header(header::CONTENT_TYPE, "application/x-msgpack")
                     .body(Body::from(body))
                     .unwrap()
+            }
+            // `Raw` and `Text` responses are built from the raw Redis reply bytes in the handler.
+            OutputFormat::Raw | OutputFormat::Text => {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "invalid output format for JSON formatter"}))).into_response()
             }
         }
     }

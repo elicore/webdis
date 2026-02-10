@@ -138,19 +138,35 @@ curl "http://127.0.0.1:7379/GET/y?jsonp=myFn"
 - If both `jsonp` and `callback` are present, `jsonp` takes precedence.
 - Callback function names are passed through unchanged (minimal validation).
 - JSONP responses use `Content-Type: application/javascript; charset=utf-8`.
-- JSONP is ignored for non-JSON formats (`.raw`, `.msg`/`.msgpack`, `?type=raw`, `?type=msg`).
+- JSONP is ignored for non-JSON formats (`.raw`, `.msg`/`.msgpack`, `.txt`, `.html`, etc.).
 - Error responses preserve their HTTP status code, but the JSON error payload is still wrapped when JSONP is requested.
 
 The `INFO` command output is automatically parsed into a structured JSON object for easier programmatic inspection, rather than returning the raw multi-line string. This behavior also applies to `CLUSTER INFO`.
 
 Other formats:
 
-- `.raw` or `?type=raw` – raw Redis Protocol (RESP) output (useful for debugging or RESP clients).
-- `.msg` / `.msgpack` or `?type=msg` / `?type=msgpack` – MessagePack (`application/x-msgpack`).
+- `.json` (default) – JSON envelope (`application/json`).
+- `.txt` – string output (`text/plain`).
+- `.html` – string output (`text/html`).
+- `.xhtml` – string output (`application/xhtml+xml`).
+- `.xml` – string output (`text/xml`).
+- `.png` – binary string output (`image/png`).
+- `.jpg` / `.jpeg` – binary string output (`image/jpeg`).
+- `.msg` / `.msgpack` – MessagePack (`application/x-msgpack`).
+- `.raw` – raw Redis Protocol (RESP) output (useful for debugging or RESP clients).
+
+`?type=<mime>` overrides the HTTP `Content-Type` header **without changing the body format**.
+
+Example (JSON body, overridden header):
+
+```sh
+curl "http://127.0.0.1:7379/GET/hello?type=application/pdf"
+# -> {"GET":"world"}   (but Content-Type: application/pdf)
+```
 
 ### File upload
 
-`PUT` uses the HTTP body as the last argument, which is handy for sending JSON or other UTF‑8 payloads:
+`PUT` uses the HTTP body as the last argument, which is handy for sending JSON, HTML, or binary payloads:
 
 ```sh
 echo '{"a":1,"b":"c"}' > doc.json
