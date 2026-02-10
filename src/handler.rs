@@ -1,5 +1,7 @@
 use crate::acl::Acl;
-use crate::format::{content_type_for_extension, json_value_response, select_jsonp_callback, OutputFormat};
+use crate::format::{
+    content_type_for_extension, json_value_response, select_jsonp_callback, OutputFormat,
+};
 use crate::redis::RedisPool;
 use crate::resp; // Added resp module
 use axum::body::Body; // Added Body
@@ -188,9 +190,7 @@ async fn process_request(
     let content_type_override = params
         .get("type")
         .and_then(|s| (!s.is_empty()).then_some(s.clone()));
-    let ext_content_type = ext
-        .as_deref()
-        .and_then(|e| content_type_for_extension(e));
+    let ext_content_type = ext.as_deref().and_then(|e| content_type_for_extension(e));
 
     // JSONP is HTTP-only and applies only to JSON output.
     // For non-JSON formats (.raw, .msg/.msgpack, .txt/.html/.xml/.png, etc.), ignore `jsonp`/`callback`.
@@ -393,10 +393,15 @@ async fn process_request(
             .headers_mut()
             .insert(header::CONTENT_TYPE, ct.parse().unwrap());
     } else if jsonp_callback.is_none() {
-        if let Some(ct) = ext_content_type {
-            response
-                .headers_mut()
-                .insert(header::CONTENT_TYPE, ct.parse().unwrap());
+        // Only apply extension-derived content types when the response didn't already
+        // define its own `Content-Type`. This avoids incorrectly overwriting error
+        // responses (e.g. JSON error bodies) with image/* content types.
+        if response.headers().get(header::CONTENT_TYPE).is_none() {
+            if let Some(ct) = ext_content_type {
+                response
+                    .headers_mut()
+                    .insert(header::CONTENT_TYPE, ct.parse().unwrap());
+            }
         }
     }
 

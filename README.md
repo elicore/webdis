@@ -114,7 +114,7 @@ The optional `.ext` suffix selects the output format (see below). Arguments shou
 - `500 Internal Server Error` – unexpected Redis or server error.
 - `503 Service Unavailable` – Redis connection pool unavailable.
 
-### JSON and other output formats
+### Output Formats
 
 JSON is the default:
 
@@ -145,15 +145,18 @@ The `INFO` command output is automatically parsed into a structured JSON object 
 
 Other formats:
 
-- `.json` (default) – JSON envelope (`application/json`).
-- `.txt` – string output (`text/plain`).
-- `.html` – string output (`text/html`).
-- `.xhtml` – string output (`application/xhtml+xml`).
-- `.xml` – string output (`text/xml`).
-- `.png` – binary string output (`image/png`).
-- `.jpg` / `.jpeg` – binary string output (`image/jpeg`).
-- `.msg` / `.msgpack` – MessagePack (`application/x-msgpack`).
+- Default (no suffix) or `.json` – JSON envelope (`application/json`).
+- `.msg` / `.msgpack` – MessagePack envelope (`application/x-msgpack`).
 - `.raw` – raw Redis Protocol (RESP) output (useful for debugging or RESP clients).
+
+Passthrough content types (for Redis string replies):
+
+- `.txt` – `text/plain`
+- `.html` – `text/html`
+- `.xhtml` – `application/xhtml+xml`
+- `.xml` – `text/xml`
+- `.png` – `image/png`
+- `.jpg` / `.jpeg` – `image/jpeg`
 
 `?type=<mime>` overrides the HTTP `Content-Type` header **without changing the body format**.
 
@@ -162,6 +165,13 @@ Example (JSON body, overridden header):
 ```sh
 curl "http://127.0.0.1:7379/GET/hello?type=application/pdf"
 # -> {"GET":"world"}   (but Content-Type: application/pdf)
+```
+
+Example (binary passthrough with an image extension):
+
+```sh
+curl --upload-file logo.png http://127.0.0.1:7379/SET/logo
+curl http://127.0.0.1:7379/GET/logo.png > downloaded.png
 ```
 
 ### File upload
