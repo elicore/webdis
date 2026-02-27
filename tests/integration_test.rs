@@ -671,6 +671,61 @@ async fn test_database_prefix_invalid_db_index_returns_400() {
     );
 }
 
+/// A DB-only path must return a clear 400 instead of trying to execute an empty command.
+#[tokio::test]
+async fn test_database_prefix_missing_command_returns_400() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(&format!("http://127.0.0.1:{}/7", server.port))
+        .send()
+        .await
+        .expect("Failed to send DB-only path request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = resp.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["error"], "Missing command after database prefix");
+}
+
+/// JSONP must wrap DB-prefix validation errors the same way as command execution errors.
+#[tokio::test]
+async fn test_database_prefix_invalid_db_index_jsonp_wraps_error() {
+    let server = TestServer::new().await;
+    let client = Client::new();
+
+    let resp = client
+        .get(&format!(
+            "http://127.0.0.1:{}/9999/GET/key?jsonp=myFn",
+            server.port
+        ))
+        .send()
+        .await
+        .expect("Failed to send invalid DB prefix JSONP request");
+
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        content_type.starts_with("application/javascript"),
+        "Expected JSONP content type, got: {content_type}"
+    );
+
+    let body = resp.text().await.expect("Failed to read JSONP body");
+    let (callback, payload) = parse_jsonp_body(&body);
+    assert_eq!(callback, "myFn");
+    assert!(
+        payload["error"]
+            .as_str()
+            .map(|s| s.contains("Invalid database index"))
+            .unwrap_or(false),
+        "Expected invalid database index error in JSONP payload, got: {payload:?}"
+    );
+}
+
 /// Percent-decoding parity: `%2f` is decoded into `/` *inside* an argument, never as a separator.
 #[tokio::test]
 async fn test_percent_decoding_slash_in_key_roundtrip() {
