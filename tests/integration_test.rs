@@ -756,6 +756,34 @@ async fn test_percent_decoding_slash_in_key_roundtrip() {
     assert_eq!(direct.as_deref(), Some("value"));
 }
 
+/// Percent-decoding parity: uppercase `%2F` must match lowercase `%2f` behavior.
+#[tokio::test]
+async fn test_percent_decoding_uppercase_slash_in_key_roundtrip() {
+    let server = TestServer::new().await;
+
+    let key = format!("percent_slash_upper_key_{}/b", server.port);
+
+    let (status, body) = raw_http_get(
+        server.port,
+        &format!("/SET/percent_slash_upper_key_{}%2Fb/value", server.port),
+    )
+    .await;
+    assert_eq!(status, 200, "Expected SET to succeed, got: {body:?}");
+
+    let (status, body) = raw_http_get(
+        server.port,
+        &format!("/GET/percent_slash_upper_key_{}%2Fb", server.port),
+    )
+    .await;
+    assert_eq!(status, 200, "Expected GET to succeed, got: {body:?}");
+    let json: serde_json::Value = serde_json::from_str(&body).expect("Expected JSON body from GET");
+    assert_eq!(json["GET"], "value");
+
+    // Confirm Redis key contains `/` (decoded), not literal `%2F`.
+    let direct = redis_get_string(&key).await;
+    assert_eq!(direct.as_deref(), Some("value"));
+}
+
 /// Percent-decoding parity: `%2e` is decoded into `.` inside an argument without triggering
 /// output-format parsing.
 #[tokio::test]
@@ -778,6 +806,28 @@ async fn test_percent_decoding_dot_does_not_trigger_format_suffix() {
     assert_eq!(json["GET"], "world");
 
     // Confirm the decoded key exists in Redis under the literal dotted name.
+    let direct = redis_get_string(&decoded_key).await;
+    assert_eq!(direct.as_deref(), Some("world"));
+}
+
+/// Percent-decoding parity: uppercase `%2E` in args must not trigger suffix parsing.
+#[tokio::test]
+async fn test_percent_decoding_uppercase_dot_does_not_trigger_format_suffix() {
+    let server = TestServer::new().await;
+
+    let encoded_key = format!("percent_dot_upper_key_{}%2Eraw", server.port);
+    let decoded_key = format!("percent_dot_upper_key_{}.raw", server.port);
+
+    let (status, body) = raw_http_get(server.port, &format!("/SET/{}/world", encoded_key)).await;
+    assert_eq!(status, 200, "Expected SET to succeed, got: {body:?}");
+
+    let (status, body) = raw_http_get(server.port, &format!("/GET/{}", encoded_key)).await;
+    assert_eq!(status, 200, "Expected GET to succeed, got: {body:?}");
+
+    let json: serde_json::Value =
+        serde_json::from_str(&body).expect("Expected JSON output (not .raw RESP)");
+    assert_eq!(json["GET"], "world");
+
     let direct = redis_get_string(&decoded_key).await;
     assert_eq!(direct.as_deref(), Some("world"));
 }
