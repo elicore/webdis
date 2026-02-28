@@ -50,6 +50,9 @@ jobs:
       redis:
         image: ${{ inputs.redis_image }}
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Build and Test (composite action)
         uses: ./.github/actions/build
         with:
@@ -63,6 +66,9 @@ jobs:
     if: ${{ startsWith(inputs.runner, 'macos-') }}
     runs-on: ${{ inputs.runner }}
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Setup redis on macOS
         run: |
           brew install redis || true
