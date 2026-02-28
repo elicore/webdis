@@ -1,8 +1,8 @@
 use crate::acl::Acl;
-use crate::format::{
-    content_type_for_extension, json_value_response, select_jsonp_callback, OutputFormat,
-};
+use crate::format::{json_value_response, select_jsonp_callback, OutputFormat};
+use crate::interfaces::{CommandExecutionError, CommandExecutor, ParseRequestInput, RequestParser};
 use crate::redis::DatabasePoolRegistry;
+use crate::request::RequestParseError;
 use crate::resp; // Added resp module
 use axum::body::Body; // Added Body
 use axum::extract::{ConnectInfo, OriginalUri};
@@ -11,52 +11,13 @@ use axum::{
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use redis::{cmd, Value as RedisValue};
+use redis::Value as RedisValue;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::pubsub::PubSubManager;
 use sha1::{Digest, Sha1};
-
-/// Percent-decodes a single URL *path segment*.
-///
-/// Webdis treats `/` as an argument separator and `.` as an output-format suffix delimiter.
-/// To preserve those semantics while supporting keys that contain `/` or `.`, we:
-/// - split the wildcard path on literal `/` first (so `%2f` never acts as a separator), then
-/// - percent-decode each segment independently (so `%2f` becomes `/` *inside* an argument).
-///
-/// Invalid percent-encodings are left untouched (e.g. `%2X` stays `%2X`).
-///
-/// Note: The output is a UTF-8 `String`; bytes that are not valid UTF-8 will be lossily
-/// converted using the standard replacement character. This matches how other string
-/// arguments are handled throughout the HTTP surface.
-fn percent_decode_segment_lossy(input: &str) -> String {
-    let bytes = input.as_bytes();
-    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
-
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            if i + 2 < bytes.len() {
-                let hi = bytes[i + 1];
-                let lo = bytes[i + 2];
-                let hex_hi = (hi as char).to_digit(16);
-                let hex_lo = (lo as char).to_digit(16);
-                if let (Some(hi), Some(lo)) = (hex_hi, hex_lo) {
-                    out.push(((hi << 4) | lo) as u8);
-                    i += 3;
-                    continue;
-                }
-            }
-        }
-
-        out.push(bytes[i]);
-        i += 1;
-    }
-
-    String::from_utf8_lossy(&out).into_owned()
-}
 
 pub async fn handle_default_root(
     State(state): State<Arc<AppState>>,
@@ -89,9 +50,13 @@ pub async fn handle_default_root(
 /// mixing blocking Pub/Sub loops with pooled command connections.
 pub struct AppState {
     /// Lazily created Redis pools keyed by logical database index.
-    pub redis_pools: DatabasePoolRegistry,
+    pub redis_pools: Arc<DatabasePoolRegistry>,
     /// Default logical database configured in `webdis.json`.
     pub default_database: u8,
+    /// Parser used by HTTP handlers to normalize input into executable requests.
+    pub request_parser: Arc<dyn RequestParser>,
+    /// Executor used to run normalized requests against Redis or another backend.
+    pub command_executor: Arc<dyn CommandExecutor>,
     pub acl: Acl,
     pub pubsub: PubSubManager,
 }
@@ -205,170 +170,42 @@ async fn process_request(
     auth_header: Option<String>,
     headers: HeaderMap,
 ) -> Response {
-    // Parse the command path (e.g., "GET/hello")
-    let parts: Vec<&str> = command.split('/').collect();
-    if parts.is_empty() {
-        // No meaningful command means we can't select a non-JSON output format.
-        // Still honor JSONP on the default JSON response when requested.
-        let jsonp = select_jsonp_callback(&params);
-        return json_value_response(
-            StatusCode::BAD_REQUEST,
-            json!({"error": "Empty command"}),
-            jsonp,
-        );
-    }
-
-    fn is_decimal_segment(segment: &str) -> bool {
-        !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_digit())
-    }
-
-    let mut db_override: Option<u8> = None;
-    let mut command_segment_index = 0usize;
-    if is_decimal_segment(parts[0]) {
-        let parsed_db = match parts[0].parse::<u8>() {
-            Ok(db) => db,
-            Err(_) => {
-                let jsonp = select_jsonp_callback(&params);
-                return json_value_response(
-                    StatusCode::BAD_REQUEST,
-                    json!({
-                        "error": "Invalid database index in path. Expected 0-255 for /<db>/<COMMAND>/..."
-                    }),
-                    jsonp,
-                );
-            }
-        };
-
-        if parts.len() < 2 || parts[1].is_empty() {
+    let parsed = match state.request_parser.parse(ParseRequestInput {
+        command_path: command.as_str(),
+        params: &params,
+        default_database: state.default_database,
+        body: body.as_deref(),
+        etag_enabled: body.is_none(),
+    }) {
+        Ok(parsed) => parsed,
+        Err(error) => {
             let jsonp = select_jsonp_callback(&params);
             return json_value_response(
                 StatusCode::BAD_REQUEST,
-                json!({"error": "Missing command after database prefix"}),
+                json!({"error": request_parse_error_message(&error)}),
                 jsonp,
             );
         }
-
-        db_override = Some(parsed_db);
-        command_segment_index = 1;
-    }
-
-    // Start from raw, *un-decoded* segments (Axum intentionally does not decode `%2f` in paths).
-    // We will percent-decode each segment after:
-    // - splitting on `/` (so `%2f` is an in-argument `/`, never a separator), and
-    // - extracting any output-format suffix from literal `.` in the URL (so `%2e` never selects
-    //   an output format/content-type).
-    let mut raw_cmd_name = parts[command_segment_index].to_string();
-    let mut raw_args: Vec<String> = parts[command_segment_index + 1..]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-
-    // Parse an optional suffix from the *final path segment* (or the command name when there
-    // are no args). In Webdis, `/COMMAND/.../argN.ext` selects the output format and/or default
-    // content type, while the `argN` used for Redis is `argN` without the suffix.
-    let mut ext: Option<String> = None;
-    if let Some(last_arg) = raw_args.last_mut() {
-        if let Some(idx) = last_arg.rfind('.') {
-            let candidate = last_arg[idx + 1..].to_ascii_lowercase();
-            let known = OutputFormat::from_extension(candidate.as_str()).is_some()
-                || content_type_for_extension(candidate.as_str()).is_some();
-            if known {
-                ext = Some(candidate);
-                last_arg.truncate(idx);
-            }
-        }
-    } else if let Some(idx) = raw_cmd_name.rfind('.') {
-        let candidate = raw_cmd_name[idx + 1..].to_ascii_lowercase();
-        let known = OutputFormat::from_extension(candidate.as_str()).is_some()
-            || content_type_for_extension(candidate.as_str()).is_some();
-        if known {
-            ext = Some(candidate);
-            raw_cmd_name.truncate(idx);
-        }
-    }
-
-    // Percent-decode segments after suffix extraction. This ensures:
-    // - `%2f` and `%2e` become literal `/` and `.` inside args, but
-    // - encoded `.` does not influence `.ext` output-format selection.
-    let cmd_name = percent_decode_segment_lossy(&raw_cmd_name);
-    let args: Vec<String> = raw_args
-        .into_iter()
-        .map(|s| percent_decode_segment_lossy(&s))
-        .collect();
-
-    // The output format controls the response body. `?type=<mime>` is *header-only*.
-    let mut format = OutputFormat::Json;
-    if let Some(ext) = ext.as_deref() {
-        if let Some(f) = OutputFormat::from_extension(ext) {
-            format = f;
-        }
-    }
-
-    // Optional content-type override (header only; does not affect payload format).
-    let content_type_override = params
-        .get("type")
-        .and_then(|s| (!s.is_empty()).then_some(s.clone()));
-    let ext_content_type = ext.as_deref().and_then(|e| content_type_for_extension(e));
-
-    // JSONP is HTTP-only and applies only to JSON output.
-    // For non-JSON formats (.raw, .msg/.msgpack, .txt/.html/.xml/.png, etc.), ignore `jsonp`/`callback`.
-    let jsonp_callback = matches!(format, OutputFormat::Json)
-        .then(|| select_jsonp_callback(&params))
-        .flatten();
-
-    // For PUT/POST requests, the HTTP body is appended as the last Redis argument.
-    // This must be passed as raw bytes to preserve binary payloads (images, etc.).
-    let body_arg = body.as_deref().filter(|b| !b.is_empty());
+    };
 
     // Check ACL
-    if !state
-        .acl
-        .check(addr.ip(), cmd_name.as_str(), auth_header.as_deref())
-    {
+    if !state.acl.check(
+        addr.ip(),
+        parsed.command_name.as_str(),
+        auth_header.as_deref(),
+    ) {
         return json_value_response(
             StatusCode::FORBIDDEN,
             json!({"error": "Forbidden"}),
-            jsonp_callback,
+            parsed.jsonp_callback.as_deref(),
         );
     }
 
-    let target_database = db_override.unwrap_or(state.default_database);
-    let pool = match state.redis_pools.pool_for_database(target_database).await {
-        Ok(pool) => pool,
-        Err(e) => {
-            return json_value_response(
-                StatusCode::SERVICE_UNAVAILABLE,
-                json!({"error": e.to_string()}),
-                jsonp_callback,
-            );
-        }
-    };
+    let execution = state.command_executor.execute(&parsed).await;
 
-    let mut conn = match pool.get().await {
-        Ok(conn) => conn,
-        Err(e) => {
-            // Preserve status codes, but wrap the JSON error payload when JSONP is requested.
-            return json_value_response(
-                StatusCode::SERVICE_UNAVAILABLE,
-                json!({"error": e.to_string()}),
-                jsonp_callback,
-            );
-        }
-    };
-
-    let mut redis_cmd = cmd(cmd_name.as_str());
-    for arg in &args {
-        redis_cmd.arg(arg);
-    }
-    if let Some(bytes) = body_arg {
-        redis_cmd.arg(bytes);
-    }
-
-    let result: Result<RedisValue, _> = redis_cmd.query_async(&mut conn).await;
-
-    let mut response = match result {
+    let mut response = match execution {
         Ok(val) => {
-            if matches!(format, OutputFormat::Raw) {
+            if matches!(parsed.output_format, OutputFormat::Raw) {
                 // Raw mode: convert directly to RESP (Redis Serialization Protocol) bytes.
                 // This bypasses the JSON conversion and returns the exact wire protocol representation
                 // expected by Redis clients.
@@ -377,7 +214,7 @@ async fn process_request(
                     .header(header::CONTENT_TYPE, "text/plain")
                     .body(Body::from(bytes))
                     .unwrap()
-            } else if matches!(format, OutputFormat::Text) {
+            } else if matches!(parsed.output_format, OutputFormat::Text) {
                 // Text/binary mode: return only the string value bytes with a MIME type
                 // implied by the suffix (.txt, .html, .png, etc.).
                 let bytes = match redis_value_to_bytes(val) {
@@ -392,10 +229,10 @@ async fn process_request(
                 };
 
                 // Compute ETag for GET requests (body is None).
-                let etag = if body.is_none() {
+                let etag = if parsed.etag_enabled {
                     let mut hasher = Sha1::new();
-                    hasher.update(cmd_name.as_bytes());
-                    for arg in &args {
+                    hasher.update(parsed.command_name.as_bytes());
+                    for arg in &parsed.args {
                         hasher.update(arg.as_bytes());
                     }
                     hasher.update(&bytes);
@@ -432,9 +269,10 @@ async fn process_request(
                 let mut json_val = redis_value_to_json(val);
 
                 // Special handling for INFO command to return structured JSON
-                if (cmd_name.eq_ignore_ascii_case("INFO")
-                    || (cmd_name.eq_ignore_ascii_case("CLUSTER")
-                        && args
+                if (parsed.command_name.eq_ignore_ascii_case("INFO")
+                    || (parsed.command_name.eq_ignore_ascii_case("CLUSTER")
+                        && parsed
+                            .args
                             .get(0)
                             .map_or(false, |a| a.eq_ignore_ascii_case("INFO"))))
                     && json_val.is_string()
@@ -445,13 +283,13 @@ async fn process_request(
                 }
 
                 // Compute ETag for GET requests (body is None)
-                let etag = if body.is_none() {
+                let etag = if parsed.etag_enabled {
                     let mut hasher = Sha1::new();
-                    hasher.update(cmd_name.as_bytes());
-                    for arg in &args {
+                    hasher.update(parsed.command_name.as_bytes());
+                    for arg in &parsed.args {
                         hasher.update(arg.as_bytes());
                     }
-                    if let Some(cb) = jsonp_callback {
+                    if let Some(cb) = parsed.jsonp_callback.as_deref() {
                         hasher.update(cb.as_bytes());
                     }
                     // Use the string representation of json_val for stable hashing
@@ -477,7 +315,11 @@ async fn process_request(
                 };
 
                 // Note: ETag must vary by JSONP callback, since the response body changes.
-                let mut resp = format.format_response(cmd_name.as_str(), json_val, jsonp_callback);
+                let mut resp = parsed.output_format.format_response(
+                    parsed.command_name.as_str(),
+                    json_val,
+                    parsed.jsonp_callback.as_deref(),
+                );
                 if let Some(tag) = etag {
                     resp.headers_mut()
                         .insert(header::ETAG, tag.parse().unwrap());
@@ -485,26 +327,34 @@ async fn process_request(
                 resp
             }
         }
-        Err(e) => {
-            if matches!(format, OutputFormat::Raw) {
+        Err(error) => {
+            if matches!(parsed.output_format, OutputFormat::Raw) {
                 // Raw Error: -ERR message
-                let err_msg = format!("-ERR {}\r\n", e);
+                let err_msg = format!("-ERR {}\r\n", error);
                 Response::builder()
                     .header(header::CONTENT_TYPE, "text/plain")
                     .body(Body::from(err_msg))
                     .unwrap()
-            } else if matches!(format, OutputFormat::Text) {
+            } else if matches!(parsed.output_format, OutputFormat::Text) {
                 // Text errors mirror the original Webdis behavior: errors are plain text.
+                let status = match error {
+                    CommandExecutionError::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+                    CommandExecutionError::ExecutionFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                };
                 Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .status(status)
                     .header(header::CONTENT_TYPE, "text/plain")
-                    .body(Body::from(e.to_string()))
+                    .body(Body::from(error.to_string()))
                     .unwrap()
             } else {
+                let status = match error {
+                    CommandExecutionError::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+                    CommandExecutionError::ExecutionFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                };
                 json_value_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    json!({"error": e.to_string()}),
-                    jsonp_callback,
+                    status,
+                    json!({"error": error.to_string()}),
+                    parsed.jsonp_callback.as_deref(),
                 )
             }
         }
@@ -521,16 +371,16 @@ async fn process_request(
     // 1) `?type` override (always wins)
     // 2) JSONP content type (unless overridden)
     // 3) Extension mapping (e.g. `.png` => `image/png`)
-    if let Some(ct) = content_type_override.as_deref() {
+    if let Some(ct) = parsed.content_type_override.as_deref() {
         response
             .headers_mut()
             .insert(header::CONTENT_TYPE, ct.parse().unwrap());
-    } else if jsonp_callback.is_none() {
+    } else if parsed.jsonp_callback.is_none() {
         // Only apply extension-derived content types when the response didn't already
         // define its own `Content-Type`. This avoids incorrectly overwriting error
         // responses (e.g. JSON error bodies) with image/* content types.
         if response.headers().get(header::CONTENT_TYPE).is_none() {
-            if let Some(ct) = ext_content_type {
+            if let Some(ct) = parsed.extension_content_type {
                 response
                     .headers_mut()
                     .insert(header::CONTENT_TYPE, ct.parse().unwrap());
@@ -539,6 +389,19 @@ async fn process_request(
     }
 
     response
+}
+
+fn request_parse_error_message(error: &RequestParseError) -> String {
+    match error {
+        RequestParseError::EmptyCommand => "Empty command".to_string(),
+        RequestParseError::InvalidDatabaseIndex => {
+            "Invalid database index in path. Expected 0-255 for /<db>/<COMMAND>/...".to_string()
+        }
+        RequestParseError::MissingCommandAfterDatabasePrefix => {
+            "Missing command after database prefix".to_string()
+        }
+        RequestParseError::InvalidCommand(message) => message.clone(),
+    }
 }
 
 /// Converts a Redis response value (RedisValue) into a JSON Value.

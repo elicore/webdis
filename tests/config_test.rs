@@ -345,7 +345,6 @@ fn test_hiredis_keep_alive_sec_parses() {
     );
 }
 
-
 /// The legacy `log_fsync` option parses string modes (`auto`, `all`).
 #[test]
 fn test_log_fsync_parses_modes() {

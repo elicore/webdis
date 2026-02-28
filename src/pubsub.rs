@@ -191,7 +191,10 @@ pub async fn handle_subscribe(
 
         let response = Response::builder()
             .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+            .header(
+                header::CONTENT_TYPE,
+                "application/javascript; charset=utf-8",
+            )
             .body(Body::from_stream(stream))
             .unwrap();
         return with_cors(response);
@@ -241,7 +244,11 @@ pub async fn handle_subscribe(
         }
     };
 
-    with_cors(Sse::new(stream).keep_alive(KeepAlive::default()).into_response())
+    with_cors(
+        Sse::new(stream)
+            .keep_alive(KeepAlive::default())
+            .into_response(),
+    )
 }
 
 /// Returns true when the request explicitly negotiates JSON streaming.
@@ -263,9 +270,8 @@ fn wants_chunked_json(headers: &HeaderMap) -> bool {
 }
 
 fn with_cors(mut response: Response) -> Response {
-    response.headers_mut().insert(
-        header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        "*".parse().unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
     response
 }

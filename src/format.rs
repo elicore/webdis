@@ -82,6 +82,7 @@ pub fn content_type_for_extension(ext: &str) -> Option<&'static str> {
 /// - The output format controls how the Redis reply is serialized into the HTTP body.
 /// - The `Content-Type` header can be selected by extension (e.g. `.png`) and/or
 ///   overridden via `?type=<mime>` without changing the body.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OutputFormat {
     Json,
     /// Raw Redis Serialization Protocol (RESP) frames.

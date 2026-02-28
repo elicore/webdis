@@ -1,25 +1,16 @@
 use webdis::logging::FsyncWriter;
-use webdis::{acl, config, handler, pubsub, redis, websocket};
+use webdis::{config, server};
 
-use axum::{
-    routing::{get, options},
-    Router,
-};
 use clap::Parser;
-use config::{Config, DEFAULT_HTTP_MAX_REQUEST_SIZE, DEFAULT_VERBOSITY};
-use handler::AppState;
+use config::{Config, DEFAULT_VERBOSITY};
+use daemonize::Daemonize;
+use nix::unistd::{Group, User};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io;
-use std::net::SocketAddr;
 use std::path::Path;
 use std::process;
-use std::sync::Arc;
 use tracing::{error, info};
-
-use axum::extract::DefaultBodyLimit;
-use daemonize::Daemonize;
-use nix::unistd::{Group, User};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Parser, Debug)]
@@ -170,86 +161,18 @@ fn main() {
 }
 
 async fn async_main(config: Config) {
-    let pool = match redis::create_pool(&config) {
-        Ok(p) => p,
-        Err(e) => {
-            error!("Failed to create Redis pool: {}", e);
+    let app = match server::build_router(&config) {
+        Ok(app) => app,
+        Err(error) => {
+            error!("{error}");
             process::exit(1);
         }
     };
 
-    // Create a dedicated Redis client for Pub/Sub
-    let pubsub_client = match redis::create_pubsub_client(&config) {
-        Ok(client) => client,
-        Err(e) => {
-            error!("Failed to create Redis client for Pub/Sub: {}", e);
-            process::exit(1);
-        }
-    };
-    let pubsub_manager = pubsub::PubSubManager::new(pubsub_client);
-    let default_database = config.database;
-    let redis_pools = redis::DatabasePoolRegistry::new(config.clone(), pool);
-
-    // State management: shared pool, ACLs, and the Pub/Sub manager.
-    // The Pub/Sub manager is separate from the pool as it requires dedicated long-lived connections.
-    let app_state = Arc::new(AppState {
-        redis_pools,
-        default_database,
-        acl: acl::Acl::new(config.acl),
-        pubsub: pubsub_manager,
-    });
-
-    let mut app = Router::new()
-        // API Route handling: uses Axum 0.8 wildcard syntax {*wildcard}
-        // to capture all segments after the base path for command parsing.
-        .route(
-            "/{*command}",
-            get(handler::handle_get)
-                .post(handler::handle_post)
-                .put(handler::handle_put)
-                .options(handler::handle_options),
-        )
-        // Dedicated Pub/Sub endpoint for SSE and WebSocket subscriptions.
-        .route("/SUBSCRIBE/{*channel}", get(pubsub::handle_subscribe));
-
-    if let Some(default_root) = config.default_root.clone() {
-        app = app.route(
-            "/",
-            get(move |state, addr, headers, query| {
-                handler::handle_default_root(state, addr, headers, query, default_root)
-            })
-            .options(handler::handle_options),
-        );
-    } else {
-        app = app.route("/", options(handler::handle_options));
+    if let Err(error) = server::serve(&config, app).await {
+        error!("Failed to serve HTTP traffic: {}", error);
+        process::exit(1);
     }
-
-    if config.websockets {
-        // Bi-directional JSON WebSocket endpoint
-        app = app.route("/.json", get(websocket::ws_handler));
-        // Bi-directional Raw RESP WebSocket endpoint
-        app = app.route("/.raw", get(websocket::ws_handler_raw));
-    }
-
-    let app = app
-        .layer(DefaultBodyLimit::max(
-            config
-                .http_max_request_size
-                .unwrap_or(DEFAULT_HTTP_MAX_REQUEST_SIZE),
-        ))
-        .with_state(app_state);
-
-    let ip: std::net::IpAddr = config.http_host.parse().expect("Invalid HTTP host");
-    let addr = SocketAddr::from((ip, config.http_port));
-    info!("Listening on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .unwrap();
 }
 
 const DEFAULT_SCHEMA_PATH: &str = "./webdis.schema.json";
