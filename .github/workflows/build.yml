@@ -1,14 +1,5 @@
-name: Build and test (OS matrix)
+name: CI
 
-# Maintainer Notes:
-# - This workflow uses the reusable workflow `.github/workflows/reusable-build.yml` for job logic,
-#   and the composite actions in `.github/actions` for Rust setup and build/test logic.
-# - `linux` job maps runner/container to arch using explicit `include` rows to reduce matrix sizes.
-# - Redis sidecar images are a matrix axis (`redis_image`) and will produce cross-product jobs.
-# - To run aarch64 tests under QEMU, configure `arch: aarch64` and the reusable workflow will pass
-#   `qemu: true` when appropriate. See the composite action README for details.
-
-# trigger the workflow on pull requests, pushes to main, nightly, and manual runs.
 on:
   pull_request:
   push:
@@ -23,66 +14,180 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  linux:
-    uses: ./.github/workflows/reusable-build.yml
+  ci-linux:
+    name: linux (${{ matrix.os_name }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        # Explicit includes allow us to map arch to specific containers and reduce job count
         include:
-          # Ubuntu 24.04 - x86
           - runner: ubuntu-24.04
-            container: ubuntu:24.04
             os_name: ubuntu-24.04
             arch: x86_64
-          # Ubuntu 25.04 - x86
-          - runner: ubuntu-24.04
-            container: ubuntu:25.04
-            os_name: ubuntu-25.04
-            arch: x86_64
-          # Ubuntu 25.04 - aarch64 (QEMU emulation)
-          - runner: ubuntu-24.04
-            container: ubuntu:25.04
-            os_name: ubuntu-25.04
+          - runner: ubuntu-24.04-arm
+            os_name: ubuntu-24.04-arm
             arch: aarch64
-          # RHEL UBI9 - x86
-          - runner: ubuntu-24.04
-            container: redhat/ubi9:9.2
-            os_name: redhat-9.2
-            arch: x86_64
-          # RHEL UBI10 - x86
-          - runner: ubuntu-24.04
-            container: redhat/ubi10:10.1
-            os_name: redhat-10.1
-            arch: x86_64
-        # Redis matrix is still independent
-        redis_image:
-          - redis:8.2-alpine
-        # If you need more Redis versions add them here; the job count will multiply
-    with:
-      arch: ${{ matrix.arch }}
-      runner: ${{ matrix.runner }}
-      container: ${{ matrix.container }}
-      os_name: ${{ matrix.os_name }}
-      redis_image: ${{ matrix.redis_image }}
-      run_integration_tests: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.run_integration == 'true' }}
+    services:
+      redis:
+        image: redis:8.2-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
 
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev ca-certificates redis-tools
 
-  macos:
-    uses: ./.github/workflows/reusable-build.yml
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+          cache: true
+
+      - name: Show toolchain versions
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Compile test binaries (regression guard)
+        run: cargo test --release --tests --no-run
+
+      - name: Run unit tests
+        run: cargo test --release --lib
+
+      - name: Run functional tests
+        run: |
+          cargo test --release \
+            --test config_test \
+            --test handler_test \
+            --test logging_fsync_test \
+            --test functional_interface_mapping_test \
+            --test functional_http_contract_test \
+            --test functional_ws_contract_test
+
+      - name: Run integration tests
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true') }}
+        run: |
+          cargo test --release \
+            --test integration_process_boot_test \
+            --test integration_redis_http_test \
+            --test integration_redis_pubsub_test \
+            --test integration_redis_socket_test \
+            --test websocket_raw_test
+
+      - name: Archive logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webdis-${{ matrix.os_name }}-${{ matrix.arch }}.log
+          path: webdis.log
+          if-no-files-found: ignore
+
+  ci-macos:
+    name: macos (${{ matrix.os_name }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: macos-14
             os_name: macos-14
+            arch: arm64
           - runner: macos-15
             os_name: macos-15
-    with:
-      arch: x86_64
-      runner: ${{ matrix.runner }}
-      container: ''
-      os_name: ${{ matrix.os_name }}
-      redis_image: ''
-      run_integration_tests: ${{ github.event_name == 'push' || github.event_name == 'schedule' || github.event.inputs.run_integration == 'true' }}
+            arch: arm64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          brew install redis openssl@3 pkg-config || true
+          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+
+      - name: Start Redis
+        run: |
+          set -euo pipefail
+          brew services start redis || true
+          for _ in {1..20}; do
+            if redis-cli ping >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "redis failed to start" >&2
+          exit 1
+
+      - name: Show toolchain versions
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Compile test binaries (regression guard)
+        run: cargo test --release --tests --no-run
+
+      - name: Run unit tests
+        run: cargo test --release --lib
+
+      - name: Run functional tests
+        run: |
+          cargo test --release \
+            --test config_test \
+            --test handler_test \
+            --test logging_fsync_test \
+            --test functional_interface_mapping_test \
+            --test functional_http_contract_test \
+            --test functional_ws_contract_test
+
+      - name: Run integration tests
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true') }}
+        run: |
+          cargo test --release \
+            --test integration_process_boot_test \
+            --test integration_redis_http_test \
+            --test integration_redis_pubsub_test \
+            --test integration_redis_socket_test \
+            --test websocket_raw_test
+
+      - name: Archive logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webdis-${{ matrix.os_name }}-${{ matrix.arch }}.log
+          path: webdis.log
+          if-no-files-found: ignore

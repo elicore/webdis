@@ -39,7 +39,12 @@ cargo test --test integration_process_boot_test --test integration_redis_http_te
 
 # Compile regression guard for all integration-test crates
 cargo test --tests --no-run
+
+# Run the Linux CI workflow locally (both matrix entries) with act
+make ci_local
 ```
+
+`make ci_local` requires Docker and `act` installed locally.
 
 ## Shared harnesses
 

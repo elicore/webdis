@@ -1,6 +1,9 @@
 # Default to release build, use DEBUG=1 to build debug
 PROFILE ?= release
 CARGO_FLAGS = --release
+ACT ?= act
+ACT_IMAGE ?= ghcr.io/catthehacker/ubuntu:act-24.04
+ACT_CONTAINER_ARCH ?= linux/amd64
 
 ifeq ($(DEBUG),1)
 	PROFILE = debug
@@ -33,4 +36,22 @@ perftest:
 
 test_all: test perftest
 
-.PHONY: all build clean install test perftest test_all
+ci_local_linux:
+	$(ACT) pull_request -W .github/workflows/build.yml -j ci-linux \
+		--matrix runner:ubuntu-24.04 \
+		--matrix os_name:ubuntu-24.04 \
+		--matrix arch:x86_64 \
+		-P ubuntu-24.04=$(ACT_IMAGE) \
+		--container-architecture $(ACT_CONTAINER_ARCH)
+
+ci_local_linux_arm:
+	$(ACT) pull_request -W .github/workflows/build.yml -j ci-linux \
+		--matrix runner:ubuntu-24.04-arm \
+		--matrix os_name:ubuntu-24.04-arm \
+		--matrix arch:aarch64 \
+		-P ubuntu-24.04-arm=$(ACT_IMAGE) \
+		--container-architecture $(ACT_CONTAINER_ARCH)
+
+ci_local: ci_local_linux ci_local_linux_arm
+
+.PHONY: all build clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm

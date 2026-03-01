@@ -389,6 +389,10 @@ CI policy:
 - Pull requests run `unit + functional`.
 - Pushes to `main` and scheduled builds run the full suite (`unit + functional + integration`).
 
+Local GitHub Actions validation:
+- Run Linux matrix entries locally before push with `make ci_local`.
+- Requires Docker plus `act` installed on your machine.
+
 ## Development workflow
 
 1. Edit configuration or code.
