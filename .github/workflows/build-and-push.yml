@@ -20,6 +20,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+      COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
     outputs:
       image_digest: ${{ steps.build-and-push.outputs.digest }}
     steps:
@@ -30,7 +33,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -38,20 +41,20 @@ jobs:
       - name: Prepare image tag variables
         id: vars
         run: |
-          echo "IMAGE_NAME=elicore/webdis" >> $GITHUB_ENV
+          echo "IMAGE_NAME=elicore/webdis" >> "$GITHUB_ENV"
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-            echo "IMAGE_TAG=${TAG_NAME}" >> $GITHUB_ENV
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            echo "IMAGE_TAG=${TAG_NAME}" >> "$GITHUB_ENV"
           else
-            SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)
-            echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_ENV
+            SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
+            echo "IMAGE_TAG=${SHORT_SHA}" >> "$GITHUB_ENV"
           fi
           # Put tags into a comma-separated value so docker/build-push-action receives them properly
-          echo "TAGS=elicore/webdis:${IMAGE_TAG},elicore/webdis:latest" >> $GITHUB_ENV
+          echo "TAGS=elicore/webdis:${IMAGE_TAG},elicore/webdis:latest" >> "$GITHUB_ENV"
 
       - name: Build and push Docker images
         id: build-and-push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -60,23 +63,21 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
       - name: Install cosign
-        if: ${{ secrets.COSIGN_KEY != '' }}
-        uses: sigstore/cosign-installer@v2
+        if: ${{ env.COSIGN_KEY != '' }}
+        uses: sigstore/cosign-installer@v3
 
       - name: Decode COSIGN key
-        if: ${{ secrets.COSIGN_KEY != '' }}
+        if: ${{ env.COSIGN_KEY != '' }}
         run: |
-          echo "${{ secrets.COSIGN_KEY }}" | base64 --decode > $HOME/cosign.key
-          chmod 600 $HOME/cosign.key
+          echo "${COSIGN_KEY}" | base64 --decode > "$HOME/cosign.key"
+          chmod 600 "$HOME/cosign.key"
 
       - name: Sign images with cosign
-        if: ${{ secrets.COSIGN_KEY != '' }}
-        env:
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        if: ${{ env.COSIGN_KEY != '' }}
         run: |
-          cosign sign --key $HOME/cosign.key "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          cosign sign --key $HOME/cosign.key "${{ env.IMAGE_NAME }}:latest"
+          cosign sign --key "$HOME/cosign.key" "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          cosign sign --key "$HOME/cosign.key" "${{ env.IMAGE_NAME }}:latest"
 
       - name: Output digest
         run: |
-          echo "image_digest=${{ steps.build-and-push.outputs.digest }}" >> $GITHUB_OUTPUT
+          echo "image_digest=${{ steps.build-and-push.outputs.digest }}" >> "$GITHUB_OUTPUT"

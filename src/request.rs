@@ -192,4 +192,52 @@ mod tests {
         assert_eq!(parsed.args, vec!["a/b.raw"]);
         assert_eq!(parsed.output_format, OutputFormat::Json);
     }
+
+    #[test]
+    fn parser_rejects_invalid_database_index() {
+        let params = HashMap::new();
+        let err = parse_http_request(ParseRequestInput {
+            command_path: "9999/GET/key",
+            params: &params,
+            default_database: 0,
+            body: None,
+            etag_enabled: true,
+        })
+        .expect_err("invalid DB prefix should fail");
+
+        assert!(matches!(err, RequestParseError::InvalidDatabaseIndex));
+    }
+
+    #[test]
+    fn parser_rejects_db_prefix_without_command() {
+        let params = HashMap::new();
+        let err = parse_http_request(ParseRequestInput {
+            command_path: "7",
+            params: &params,
+            default_database: 0,
+            body: None,
+            etag_enabled: true,
+        })
+        .expect_err("db prefix without command should fail");
+
+        assert!(matches!(err, RequestParseError::MissingCommandAfterDatabasePrefix));
+    }
+
+    #[test]
+    fn parser_disables_jsonp_for_raw_output() {
+        let mut params = HashMap::new();
+        params.insert("jsonp".to_string(), "cb".to_string());
+
+        let parsed = parse_http_request(ParseRequestInput {
+            command_path: "GET/key.raw",
+            params: &params,
+            default_database: 0,
+            body: None,
+            etag_enabled: true,
+        })
+        .expect("raw request should parse");
+
+        assert_eq!(parsed.output_format, OutputFormat::Raw);
+        assert!(parsed.jsonp_callback.is_none());
+    }
 }

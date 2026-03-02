@@ -175,3 +175,35 @@ impl OutputFormat {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn select_jsonp_prefers_jsonp_over_callback() {
+        let mut params = HashMap::new();
+        params.insert("callback".to_string(), "cb".to_string());
+        params.insert("jsonp".to_string(), "jp".to_string());
+        assert_eq!(select_jsonp_callback(&params), Some("jp"));
+    }
+
+    #[test]
+    fn select_jsonp_ignores_empty_values() {
+        let mut params = HashMap::new();
+        params.insert("jsonp".to_string(), "".to_string());
+        params.insert("callback".to_string(), "".to_string());
+        assert_eq!(select_jsonp_callback(&params), None);
+    }
+
+    #[test]
+    fn extension_maps_to_expected_format_and_content_type() {
+        assert_eq!(
+            OutputFormat::from_extension("msgpack"),
+            Some(OutputFormat::MessagePack)
+        );
+        assert_eq!(OutputFormat::from_extension("raw"), Some(OutputFormat::Raw));
+        assert_eq!(OutputFormat::from_extension("txt"), Some(OutputFormat::Text));
+        assert_eq!(content_type_for_extension("png"), Some("image/png"));
+    }
+}

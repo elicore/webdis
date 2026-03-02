@@ -378,18 +378,26 @@ Example:
 
 ## Testing
 
-| Command                              | Purpose                                                                                                                                                                                                           |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cargo test --test config_test`      | Validates configuration parsing, defaults, schema-backed helpers, and legacy alias precedence (fast, no Redis needed).                                                                                            |
-| `cargo test --test integration_test` | Spins up the server, exercises HTTP/WebSocket/ACL behavior against a real Redis instance, and enforces request-size limits. Requires permission to bind ephemeral ports and connect to Redis on `127.0.0.1:6379`. |
+| Tier | Command | Purpose |
+| --- | --- | --- |
+| `unit` | `cargo test --lib` | Fast pure logic checks in `src/` with no network/Redis dependency. |
+| `functional` | `cargo test --test config_test --test handler_test --test logging_fsync_test --test functional_interface_mapping_test --test functional_http_contract_test --test functional_ws_contract_test` | Non-Redis HTTP/WS/interface contract checks using injected test executors. |
+| `integration` | `cargo test --test integration_process_boot_test --test integration_redis_http_test --test integration_redis_pubsub_test --test integration_redis_socket_test --test websocket_raw_test` | Real Redis/process/socket behavior and end-to-end runtime interactions. |
+| `compile-guard` | `cargo test --tests --no-run` | Compiles all external test crates to catch harness drift early. |
 
-Integration tests spawn a temporary configuration per case, so they can run in parallel. If your environment restricts binding to random localhost ports, run the integration suite in a sandbox that allows it.
+CI policy:
+- Pull requests run `unit + functional`.
+- Pushes to `main` and scheduled builds run the full suite (`unit + functional + integration`).
+
+Local GitHub Actions validation:
+- Run Linux matrix entries locally before push with `make ci_local`.
+- Requires Docker plus `act` installed on your machine.
 
 ## Development workflow
 
 1. Edit configuration or code.
-2. Run the fast config tests (`cargo test --test config_test`).
-3. Run the full suite (including integration) when you can bind local ports.
+2. Run the fast default gate (`cargo test --lib` plus functional tier).
+3. Run the integration tier when you can bind local ports and reach Redis.
 4. Use `webdis --write-default-config` whenever you introduce new options to keep the sample config and schema aligned.
 
 ## Library embedding
