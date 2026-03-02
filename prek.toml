@@ -1,0 +1,51 @@
+# Developer-only prek configuration.
+# Install hooks locally:
+#   prek install --hook-type pre-commit --hook-type pre-push
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "cargo-fmt"
+name = "cargo fmt (workspace)"
+entry = "cargo fmt --all -- --check"
+language = "system"
+pass_filenames = false
+stages = ["pre-commit"]
+files = "\\.rs$|^Cargo\\.(toml|lock)$"
+
+[[repos.hooks]]
+id = "cargo-check"
+name = "cargo check (workspace/all-targets)"
+entry = "cargo check --workspace --all-targets"
+language = "system"
+pass_filenames = false
+stages = ["pre-commit"]
+files = "\\.rs$|^Cargo\\.(toml|lock)$"
+
+[[repos.hooks]]
+id = "cargo-clippy"
+name = "cargo clippy (deny warnings)"
+entry = "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+language = "system"
+pass_filenames = false
+stages = ["pre-push"]
+files = "\\.rs$|^Cargo\\.(toml|lock)$"
+
+[[repos.hooks]]
+id = "cargo-test-lib"
+name = "cargo test --lib"
+entry = "cargo test --lib"
+language = "system"
+pass_filenames = false
+stages = ["pre-push"]
+files = "\\.rs$|^Cargo\\.(toml|lock)$"
+
+[[repos.hooks]]
+id = "cargo-test-config"
+name = "cargo test --test config_test"
+entry = "cargo test --test config_test"
+language = "system"
+pass_filenames = false
+stages = ["pre-push"]
+files = "\\.rs$|^Cargo\\.(toml|lock)$|^webdis\\.json$|^webdis\\.schema\\.json$"
