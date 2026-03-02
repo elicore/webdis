@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "Starting dev compose stack (smoke test)..."
-docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f docker/docker-compose.dev.yml up --build -d
 
 echo "Waiting for redis-web to be healthy..."
 for i in $(seq 1 30); do
@@ -12,14 +12,14 @@ for i in $(seq 1 30); do
   fi
   if [ "$i" -eq 30 ]; then
     echo "Timed out waiting for redis-web; showing logs for debugging..."
-    docker compose -f docker-compose.dev.yml logs --no-color --tail 100
-    docker compose -f docker-compose.dev.yml down -v
+    docker compose -f docker/docker-compose.dev.yml logs --no-color --tail 100
+    docker compose -f docker/docker-compose.dev.yml down -v
     exit 1
   fi
   sleep 1
 done
 
 echo "Stopping compose..."
-docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker/docker-compose.dev.yml down -v
 
 echo "Smoke test completed"

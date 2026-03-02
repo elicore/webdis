@@ -16,6 +16,8 @@ Compatibility files kept during transition:
 - `webdis.schema.json`
 - `webdis.legacy.json`
 
+For full samples, see [Config Examples](/reference/config-examples/).
+
 Compatibility keys still accepted:
 
 - `threads` alias for `http_threads`

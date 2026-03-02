@@ -31,7 +31,8 @@ export default defineConfig({
             { label: 'HTTP', link: '/reference/http/' },
             { label: 'WebSocket', link: '/reference/websocket/' },
             { label: 'Response Formats', link: '/reference/formats/' },
-            { label: 'Configuration', link: '/reference/configuration/' }
+            { label: 'Configuration', link: '/reference/configuration/' },
+            { label: 'Config Examples', link: '/reference/config-examples/' }
           ]
         },
         {
@@ -47,7 +48,8 @@ export default defineConfig({
           items: [
             { label: 'Architecture', link: '/maintainers/architecture/' },
             { label: 'Testing and CI', link: '/maintainers/testing/' },
-            { label: 'Release and Signing', link: '/maintainers/release/' }
+            { label: 'Release and Signing', link: '/maintainers/release/' },
+            { label: 'Changelog', link: '/maintainers/changelog/' }
           ]
         }
       ]

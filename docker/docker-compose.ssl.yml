@@ -4,8 +4,8 @@ services:
     image: redis:7.0
     volumes:
       - redis-data:/data
-      - ./certs:/certs:ro
-      - ./redis.conf:/etc/redis/redis.conf:ro
+      - ../certs:/certs:ro
+      - ../redis.conf:/etc/redis/redis.conf:ro
     command: ["redis-server", "/etc/redis/redis.conf"]
     expose:
       - 6380
@@ -21,8 +21,8 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./redis-web.json:/etc/redis-web.json:ro
-      - ./certs:/certs:ro
+      - ../redis-web.json:/etc/redis-web.json:ro
+      - ../certs:/certs:ro
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6380

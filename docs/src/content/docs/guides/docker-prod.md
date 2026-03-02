@@ -14,8 +14,8 @@ services:
 Base production sample:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml logs -f redis-web
+docker compose -f docker/docker-compose.prod.yml up -d
+docker compose -f docker/docker-compose.prod.yml logs -f redis-web
 ```
 
 Also see [Release and Signing](/maintainers/release/).
