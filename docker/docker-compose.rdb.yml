@@ -2,39 +2,30 @@ version: '3.8'
 services:
   redis:
     image: redis:7.0
-    command: redis-server --appendonly yes
+    command: redis-server --dir /data --appendonly no
     volumes:
       - redis-data:/data
     expose:
       - 6379
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 2s
       retries: 5
-    restart: unless-stopped
 
   redis-web:
-    build: .
-    image: redis-web:dev
+    image: ghcr.io/elicore/redis-web:latest
     depends_on:
       - redis
     ports:
       - "127.0.0.1:7379:7379"
     volumes:
-      - ./redis-web.json:/etc/redis-web.json:ro
-      - ./config:/etc/redis-web.d:ro
+      - ../redis-web.json:/etc/redis-web.json:ro
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - LOG_LEVEL=debug
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:7379/PING"]
-      interval: 10s
-      timeout: 2s
-      retries: 5
     restart: unless-stopped
 
 volumes:
   redis-data:
-    name: redis_web_redis_data

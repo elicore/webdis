@@ -22,8 +22,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 if [[ "$MODE" == "dev" ]]; then
-  echo "Starting dev compose stack (docker compose -f docker-compose.dev.yml up --build)"
-  docker compose -f docker-compose.dev.yml up --build
+  echo "Starting dev compose stack (docker compose -f docker/docker-compose.dev.yml up --build)"
+  docker compose -f docker/docker-compose.dev.yml up --build
 elif [[ "$MODE" == "run" ]]; then
   echo "Running docker run for $TAG with config $CONFIG"
   docker run --rm -it -p "${PORT}:7379" -v "$(pwd)/${CONFIG}":/etc/redis-web.json:ro --name redis-web-run "${TAG}"
