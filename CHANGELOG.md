@@ -26,6 +26,8 @@ All notable changes to this project will be documented in this file.
 
 - *(changelog)* Update CHANGELOG.md ([ace33cc](https://github.com/elicore/redis-web/commit/ace33cccf8fd0fdae326023ee7a76038fa1d2154))
 
+- *(changelog)* Update CHANGELOG.md ([51f8519](https://github.com/elicore/redis-web/commit/51f8519be0f8a5d897db8a1c03fbdb14d44dd965))
+
 
 ### Features
 
@@ -140,6 +142,11 @@ All notable changes to this project will be documented in this file.
 - Add release-please, changelog, and prek workflows ([deffc4c](https://github.com/elicore/redis-web/commit/deffc4ce38e864dac2d9c870e39635b095f41f1a))
 
 - Skip docs or code jobs based on changes ([4643c6f](https://github.com/elicore/redis-web/commit/4643c6fec1c84f9c9b85ad881512aa550858ba6c))
+
+
+### Logging
+
+- Add startup, redis validation, and execution error logs ([722646a](https://github.com/elicore/redis-web/commit/722646a6c316dabf8fbba45816cb01fb5c6b9c07))
 
 
 ### Root
