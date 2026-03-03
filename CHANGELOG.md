@@ -44,6 +44,10 @@ All notable changes to this project will be documented in this file.
 
 - *(changelog)* Update CHANGELOG.md ([05159a0](https://github.com/elicore/redis-web/commit/05159a0f486af33de7aa173c3ed4199121105c90))
 
+- *(changelog)* Update CHANGELOG.md ([ee29161](https://github.com/elicore/redis-web/commit/ee291614f189c47ccbd5684754f9100a10054ed7))
+
+- Consolidate and restructure pages ([f6c281a](https://github.com/elicore/redis-web/commit/f6c281a923abe365e7360573463b350b3567dd43))
+
 
 ### Features
 
@@ -182,6 +186,8 @@ All notable changes to this project will be documented in this file.
 - Simplify workflows and add local act validation ([6512080](https://github.com/elicore/redis-web/commit/6512080457b8c1d296c2903a0cd74ecafb2d490b))
 
 - Add release-please, changelog, and prek workflows ([1adbd6f](https://github.com/elicore/redis-web/commit/1adbd6f4f91968043874af397187fdf9834da284))
+
+- Skip docs or code jobs based on changes ([7a22edf](https://github.com/elicore/redis-web/commit/7a22edfc200b27073a4daec95015e13ff645be77))
 
 
 ### Slog.c
