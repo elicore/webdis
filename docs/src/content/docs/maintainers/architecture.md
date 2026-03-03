@@ -1,7 +1,9 @@
 ---
-title: Architecture
-description: Workspace and crate boundaries.
+title: Maintainers Guide
+description: Architecture, testing, release practices, and changelog notes.
 ---
+
+## Architecture
 
 Workspace crates:
 
@@ -10,4 +12,48 @@ Workspace crates:
 - `redis-web-compat`: naming and migration helpers
 - `redis-web`: CLI crate with canonical + alias binaries
 
-This split isolates stable protocol/config logic from transport/runtime and migration concerns.
+This split isolates stable protocol/config logic from transport/runtime and
+migration concerns.
+
+## Testing and CI
+
+Test tiers:
+
+- Unit: `cargo test --workspace --lib`
+- Functional: non-Redis contract tests in `crates/redis-web/tests`
+- Integration: process + Redis socket/HTTP/WS flows
+
+Core commands:
+
+```bash
+cargo test -p redis-web --tests --no-run
+make test
+make test_integration
+```
+
+CI also runs docs build/link checks and rename guard checks.
+
+## Release and signing
+
+Canonical image namespace:
+
+- `ghcr.io/elicore/redis-web`
+
+Transition compatibility tags are also published under:
+
+- `ghcr.io/elicore/webdis`
+
+Build and push workflow signs images when cosign secrets are configured.
+
+Verification example:
+
+```bash
+./scripts/validate-image.sh --image ghcr.io/elicore/redis-web:latest --method cosign
+```
+
+## Changelog
+
+The canonical changelog lives in `CHANGELOG.md` at the repository root.
+
+Changelog generation is automated via the `changelog` GitHub Action using
+`git-cliff`.

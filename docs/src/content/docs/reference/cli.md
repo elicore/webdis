@@ -8,6 +8,9 @@ description: Canonical and compatibility binaries.
 - `redis-web` (canonical)
 - `webdis` (compatibility alias)
 
+Both binaries accept the same flags and config file format. Prefer `redis-web`
+for new deployments and scripts.
+
 ## Common commands
 
 ```bash
