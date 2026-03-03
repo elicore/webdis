@@ -62,6 +62,8 @@ pub struct AppState {
     pub command_executor: Arc<dyn CommandExecutor>,
     pub acl: Acl,
     pub pubsub: PubSubManager,
+    /// Optional hiredis-compat session manager (mounted under `/__compat/*`).
+    pub compat_hiredis: Option<Arc<crate::compat::CompatSessionManager>>,
 }
 
 use axum::body::Bytes;

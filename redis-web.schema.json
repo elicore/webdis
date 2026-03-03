@@ -154,6 +154,9 @@
         }
       },
       "additionalProperties": false
+    },
+    "compat_hiredis": {
+      "$ref": "#/$defs/compatHiredisConfig"
     }
   },
   "$defs": {
@@ -244,6 +247,41 @@
           "description": "Fsync interval in milliseconds (fsync at most once per interval)."
         }
       ]
+    },
+    "compatHiredisConfig": {
+      "type": "object",
+      "description": "Configuration for the hiredis-compatible session bridge endpoints.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the /__compat session bridge."
+        },
+        "path_prefix": {
+          "type": "string",
+          "default": "/__compat",
+          "description": "Path prefix for compat endpoints."
+        },
+        "session_ttl_sec": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 300,
+          "description": "Idle session expiration timeout in seconds."
+        },
+        "max_sessions": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1024,
+          "description": "Maximum number of active compat sessions."
+        },
+        "max_pipeline_commands": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 256,
+          "description": "Maximum commands accepted in one pipelined compat request."
+        }
+      }
     }
   }
 }

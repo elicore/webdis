@@ -5,7 +5,7 @@ use crate::redis::{self, DatabasePoolRegistry};
 use crate::websocket;
 use axum::extract::DefaultBodyLimit;
 use axum::{
-    routing::{get, options},
+    routing::{delete, get, options, post},
     Router,
 };
 use redis_web_core::acl;
@@ -31,6 +31,7 @@ pub fn build_router_with_dependencies(
     dependencies: ServerDependencies,
     redis_pools: Arc<DatabasePoolRegistry>,
     pubsub_manager: PubSubManager,
+    compat_hiredis: Option<Arc<crate::compat::CompatSessionManager>>,
 ) -> Router {
     let app_state = Arc::new(AppState {
         redis_pools,
@@ -39,6 +40,7 @@ pub fn build_router_with_dependencies(
         command_executor: dependencies.command_executor,
         acl: acl::Acl::new(config.acl.clone()),
         pubsub: pubsub_manager,
+        compat_hiredis: compat_hiredis.clone(),
     });
 
     let mut app = Router::new()
@@ -50,6 +52,25 @@ pub fn build_router_with_dependencies(
                 .options(handler::handle_options),
         )
         .route("/SUBSCRIBE/{*channel}", get(pubsub::handle_subscribe));
+
+    if let Some(compat) = compat_hiredis {
+        let prefix = compat.settings().path_prefix.clone();
+        let create_path = format!("{}/session", prefix);
+        let delete_path = format!("{}/session/{{session_id}}", prefix);
+        let cmd_path = format!("{}/cmd/{{*session_id}}", prefix);
+        let stream_path = format!("{}/stream/{{*session_id}}", prefix);
+        let ws_path = format!("{}/ws/{{session_id}}", prefix);
+
+        app = app
+            .route(
+                &create_path,
+                post(crate::compat::create_session).options(handler::handle_options),
+            )
+            .route(&delete_path, delete(crate::compat::delete_session))
+            .route(&cmd_path, post(crate::compat::command_raw))
+            .route(&stream_path, get(crate::compat::stream_raw))
+            .route(&ws_path, get(crate::compat::ws_raw));
+    }
 
     if let Some(default_root) = config.default_root.clone() {
         app = app.route(
@@ -87,6 +108,15 @@ pub fn build_router(config: &Config) -> Result<Router, ServerBuildError> {
     let pubsub_client = redis::create_pubsub_client(config).map_err(ServerBuildError::PubSub)?;
     let pubsub_manager = pubsub::PubSubManager::new(pubsub_client);
 
+    let compat_hiredis = match config.compat_hiredis.as_ref() {
+        Some(cfg) if cfg.enabled => {
+            let manager = crate::compat::CompatSessionManager::new(config)
+                .map_err(ServerBuildError::Compat)?;
+            Some(Arc::new(manager))
+        }
+        _ => None,
+    };
+
     let dependencies = ServerDependencies {
         request_parser: Arc::new(WebdisRequestParser),
         command_executor: Arc::new(RedisCommandExecutor::new(redis_pools_shared.clone())),
@@ -97,6 +127,7 @@ pub fn build_router(config: &Config) -> Result<Router, ServerBuildError> {
         dependencies,
         redis_pools_shared,
         pubsub_manager,
+        compat_hiredis,
     ))
 }
 
@@ -125,6 +156,7 @@ pub async fn serve(config: &Config, app: Router) -> Result<(), std::io::Error> {
 pub enum ServerBuildError {
     RedisPool(redis::RedisCreatePoolError),
     PubSub(::redis::RedisError),
+    Compat(::redis::RedisError),
 }
 
 impl std::fmt::Display for ServerBuildError {
@@ -133,6 +165,12 @@ impl std::fmt::Display for ServerBuildError {
             ServerBuildError::RedisPool(error) => write!(f, "failed to create Redis pool: {error}"),
             ServerBuildError::PubSub(error) => {
                 write!(f, "failed to create Redis pub/sub client: {error}")
+            }
+            ServerBuildError::Compat(error) => {
+                write!(
+                    f,
+                    "failed to create hiredis-compat session manager: {error}"
+                )
             }
         }
     }

@@ -33,6 +33,7 @@ curl http://127.0.0.1:7379/GET/hello
 cargo build --workspace
 make test
 make test_integration
+make build_hiredis_compat
 ```
 
 For deep references (CLI, config schema, compatibility guarantees, embedding, Docker, maintainers), use the docs site content in `docs/src/content/docs`.

@@ -85,3 +85,17 @@ Raw RESP example:
 
 Connections stay open until the client closes them. You can send multiple
 commands over the same socket.
+
+## Hiredis Compat Endpoints
+
+When `compat_hiredis.enabled` is true, redis-web also exposes session-oriented
+compat routes (default prefix: `/__compat`):
+
+- `POST /__compat/session`
+- `DELETE /__compat/session/{session_id}`
+- `POST /__compat/cmd/{session_id}.raw`
+- `GET /__compat/stream/{session_id}.raw`
+- `GET /__compat/ws/{session_id}`
+
+These endpoints are intended for hiredis compatibility shims that need
+connection-scoped behavior while tunneling over HTTP/WebSocket.

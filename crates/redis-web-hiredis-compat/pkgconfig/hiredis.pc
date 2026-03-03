@@ -1,0 +1,10 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: hiredis
+Description: redis-web hiredis compatibility shim
+Version: 0.1.0
+Libs: -L${libdir} -lhiredis
+Cflags: -I${includedir}

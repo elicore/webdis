@@ -34,6 +34,7 @@ impl FunctionalServer {
             },
             pools,
             pubsub,
+            None,
         );
 
         let listener = TcpListener::bind(("127.0.0.1", 0))

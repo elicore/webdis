@@ -23,6 +23,23 @@ Compatibility keys still accepted:
 
 Environment variable expansion supports exact `$VARNAME` string values.
 
+## Hiredis Compat Bridge
+
+Use `compat_hiredis` to configure session endpoints used by hiredis-compatible
+clients.
+
+```json
+{
+  "compat_hiredis": {
+    "enabled": true,
+    "path_prefix": "/__compat",
+    "session_ttl_sec": 300,
+    "max_sessions": 1024,
+    "max_pipeline_commands": 256
+  }
+}
+```
+
 ## Examples
 
 Canonical files (repo root):

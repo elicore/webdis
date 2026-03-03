@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
+### Added
+
+- Initial hiredis-compat implementation scaffolding:
+  - New `redis-web-hiredis-compat` crate with C ABI symbol exports and headers
+  - New `/__compat/*` session endpoints for raw RESP command/session transport
+  - New `compat_hiredis` config namespace in schema/config parsing
+  - Integration tests for compat session command and pub/sub stream paths
+  - New compatibility and test documentation pages for maintainers/users
+
 ### Bug Fixes
 
 - *(docs)* Build ([4974b28](https://github.com/elicore/redis-web/commit/4974b28e4c2aa50a3c6d2e1dd8523f61bfe3a429))
@@ -145,6 +154,5 @@ All notable changes to this project will be documented in this file.
 ### Root
 
 - Fork point snapshot ([9a120cb](https://github.com/elicore/redis-web/commit/9a120cb778a0796b54ba6dbfcdb5ee0287c83473))
-
 
 

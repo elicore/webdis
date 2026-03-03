@@ -19,7 +19,9 @@ export default defineConfig({
           label: 'Guides',
           items: [
             { label: 'Deployment (Docker and Security)', link: '/guides/deployment/' },
-            { label: 'Embedding', link: '/guides/embedding/' }
+            { label: 'Embedding', link: '/guides/embedding/' },
+            { label: 'Hiredis Functional Tests', link: '/guides/hiredis-functional-tests/' },
+            { label: 'Hiredis Performance Harness', link: '/guides/hiredis-performance-tests/' }
           ]
         },
         {
@@ -33,7 +35,8 @@ export default defineConfig({
         {
           label: 'Compatibility',
           items: [
-            { label: 'Webdis Compatibility and Migration', link: '/compatibility/webdis-compatibility/' }
+            { label: 'Webdis Compatibility and Migration', link: '/compatibility/webdis-compatibility/' },
+            { label: 'Hiredis Drop-In Compatibility', link: '/compatibility/hiredis-dropin/' }
           ]
         },
         {

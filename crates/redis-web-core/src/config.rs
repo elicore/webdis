@@ -46,6 +46,9 @@ pub struct Config {
     /// **TCP/TLS** connections it opens. This does not apply to UNIX-domain socket
     /// connections (`redis_socket`).
     pub hiredis: Option<HiredisConfig>,
+    /// Optional hiredis-compat runtime settings used by the `/__compat/*` bridge.
+    #[serde(default = "default_compat_hiredis")]
+    pub compat_hiredis: Option<CompatHiredisConfig>,
     pub http_max_request_size: Option<usize>,
     pub user: Option<String>,
     pub group: Option<String>,
@@ -104,6 +107,33 @@ pub struct HiredisConfig {
     /// to match Hiredis' `redisEnableKeepAliveWithInterval` behavior as closely as
     /// the platform allows.
     pub keep_alive_sec: Option<u64>,
+}
+
+/// Configuration for hiredis-compatible session endpoints.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CompatHiredisConfig {
+    /// Enable/disable the compat session layer.
+    pub enabled: bool,
+    /// URL prefix mounted for compat endpoints.
+    pub path_prefix: String,
+    /// Maximum idle time (in seconds) before a compat session expires.
+    pub session_ttl_sec: u64,
+    /// Maximum number of concurrent compat sessions.
+    pub max_sessions: usize,
+    /// Hard cap on commands accepted in a single pipelined compat request.
+    pub max_pipeline_commands: usize,
+}
+
+impl Default for CompatHiredisConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            path_prefix: "/__compat".to_string(),
+            session_ttl_sec: 300,
+            max_sessions: 1024,
+            max_pipeline_commands: 256,
+        }
+    }
 }
 
 impl Config {
@@ -204,6 +234,7 @@ impl Default for Config {
             acl: None,
             redis_auth: None,
             hiredis: None,
+            compat_hiredis: default_compat_hiredis(),
             http_max_request_size: Some(DEFAULT_HTTP_MAX_REQUEST_SIZE),
             user: None,
             group: None,
@@ -238,6 +269,7 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "redis_socket",
     "redis_auth",
     "hiredis",
+    "compat_hiredis",
     "http_host",
     "http_port",
     "http_threads",
@@ -256,6 +288,10 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "ssl",
     "acl",
 ];
+
+fn default_compat_hiredis() -> Option<CompatHiredisConfig> {
+    Some(CompatHiredisConfig::default())
+}
 
 fn decorate_default_map(mut map: Map<String, Value>, schema_ref: &str) -> Map<String, Value> {
     map.insert("$schema".to_string(), Value::String(schema_ref.to_string()));

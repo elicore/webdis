@@ -15,6 +15,15 @@ all: build
 build:
 	cargo build --workspace $(CARGO_FLAGS)
 
+build_hiredis_compat:
+	./scripts/build-hiredis-compat.sh
+
+test_hiredis_compat_fixture:
+	./crates/redis-web-hiredis-compat/tests/compile-fixture.sh
+
+bench_hiredis_compat:
+	./crates/redis-web/tests/bench-hiredis-compat.sh
+
 clean:
 	cargo clean
 
@@ -29,7 +38,7 @@ test_functional:
 	cargo test -p redis-web --test config_test --test handler_test --test logging_fsync_test --test functional_interface_mapping_test --test functional_http_contract_test --test functional_ws_contract_test
 
 test_integration:
-	cargo test -p redis-web --test integration_process_boot_test --test integration_redis_http_test --test integration_redis_pubsub_test --test integration_redis_socket_test --test websocket_raw_test
+	cargo test -p redis-web --test integration_process_boot_test --test integration_redis_http_test --test integration_redis_pubsub_test --test integration_redis_socket_test --test websocket_raw_test --test integration_hiredis_compat_test
 
 perftest:
 	./crates/redis-web/tests/bench.sh
@@ -54,4 +63,4 @@ ci_local_linux_arm:
 
 ci_local: ci_local_linux ci_local_linux_arm
 
-.PHONY: all build clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm
+.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm

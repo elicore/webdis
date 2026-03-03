@@ -263,6 +263,20 @@ pub fn create_pubsub_client(config: &AppConfig) -> Result<redis::Client, redis::
     }
 }
 
+/// Creates a Redis client using the same address/credential precedence as the pool.
+///
+/// This is used by compatibility session paths that need dedicated, stateful
+/// connections instead of pooled multiplexed connections.
+pub fn create_client(config: &AppConfig) -> Result<redis::Client, redis::RedisError> {
+    if let Some(socket) = config.redis_socket.as_deref() {
+        let info = connection_info_for_unix_socket_redis(config, socket)?;
+        redis::Client::open(info)
+    } else {
+        let info = pool_connection_info(config)?;
+        redis::Client::open(info)
+    }
+}
+
 fn ssl_enabled(config: &AppConfig) -> bool {
     config.ssl.as_ref().map(|ssl| ssl.enabled).unwrap_or(false)
 }

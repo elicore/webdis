@@ -117,7 +117,8 @@ jobs:
             --test integration_redis_http_test \
             --test integration_redis_pubsub_test \
             --test integration_redis_socket_test \
-            --test websocket_raw_test
+            --test websocket_raw_test \
+            --test integration_hiredis_compat_test
 
       - name: Archive logs
         if: always()
@@ -209,7 +210,8 @@ jobs:
             --test integration_redis_http_test \
             --test integration_redis_pubsub_test \
             --test integration_redis_socket_test \
-            --test websocket_raw_test
+            --test websocket_raw_test \
+            --test integration_hiredis_compat_test
 
       - name: Archive logs
         if: always()

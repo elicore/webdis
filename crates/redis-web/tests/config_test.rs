@@ -105,6 +105,10 @@ fn test_default_values() {
     // Verify optional fields are None when not specified
     assert_eq!(config.http_max_request_size, None);
     assert_eq!(config.user, None);
+    assert!(config.compat_hiredis.is_some());
+    let compat = config.compat_hiredis.as_ref().unwrap();
+    assert!(compat.enabled);
+    assert_eq!(compat.path_prefix, "/__compat");
 }
 
 /// Ensures the generated default configuration document contains the expected
@@ -343,6 +347,30 @@ fn test_hiredis_keep_alive_sec_parses() {
         config.hiredis.as_ref().and_then(|h| h.keep_alive_sec),
         Some(15)
     );
+}
+
+#[test]
+fn test_compat_hiredis_config_parses() {
+    let config_json = r#"{
+        "compat_hiredis": {
+            "enabled": true,
+            "path_prefix": "/bridge",
+            "session_ttl_sec": 120,
+            "max_sessions": 64,
+            "max_pipeline_commands": 32
+        }
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    let compat = config.compat_hiredis.expect("compat_hiredis should parse");
+    assert!(compat.enabled);
+    assert_eq!(compat.path_prefix, "/bridge");
+    assert_eq!(compat.session_ttl_sec, 120);
+    assert_eq!(compat.max_sessions, 64);
+    assert_eq!(compat.max_pipeline_commands, 32);
 }
 
 /// The legacy `log_fsync` option parses string modes (`auto`, `all`).

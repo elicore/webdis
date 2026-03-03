@@ -3,6 +3,7 @@ members = [
     "crates/redis-web-core",
     "crates/redis-web-runtime",
     "crates/redis-web-compat",
+    "crates/redis-web-hiredis-compat",
     "crates/redis-web",
 ]
 resolver = "2"
