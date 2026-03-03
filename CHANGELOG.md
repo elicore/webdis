@@ -3,196 +3,148 @@
 All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
-### #89
-
-- Add Authorization to CORS headers ([8b1e91a](https://github.com/elicore/redis-web/commit/8b1e91a2e5b49ee5409b4f6181be70e0f29cf43c))
-
-
-### #91
-
-- Add missing return after sending HTTP Options ([f69c28c](https://github.com/elicore/redis-web/commit/f69c28c632800567ab6fc94d17e4cf1073cea1ba))
-
-
-### BUG
-
-- Adjust order of memory release ([7b7b51a](https://github.com/elicore/redis-web/commit/7b7b51af5f6eda85a5e30305e9f3ba7ec94925ee))
-
-
 ### Bug Fixes
 
-- *(docs)* Build ([c228708](https://github.com/elicore/redis-web/commit/c2287084450f4a020dedd015f8923dc7c062ecc9))
-
-
-### CodeQL
-
-- Apply recommendations ([b3868d8](https://github.com/elicore/redis-web/commit/b3868d81d891e3a3ea8304c059d33ddc8885cbbc))
-
-- Potentially uninitialized local variable ([d2b1156](https://github.com/elicore/redis-web/commit/d2b115616f36287caa2e9d59b54c8b090613b6a9))
-
-- Poorly documented large function ([3aaeabf](https://github.com/elicore/redis-web/commit/3aaeabfcd316e223a713b7c521b9b52785da0f0d))
+- *(docs)* Build ([4974b28](https://github.com/elicore/redis-web/commit/4974b28e4c2aa50a3c6d2e1dd8523f61bfe3a429))
 
 
 ### Documentation
 
-- Rewrite README for Rust implementation and configuration ([f7e5245](https://github.com/elicore/redis-web/commit/f7e524578883537a7ce08ef806c61a045c7181fe))
+- Rewrite README for Rust implementation and configuration ([bd39e37](https://github.com/elicore/redis-web/commit/bd39e375144ad7cd725f8aa1784f4eb57549b3b9))
 
-- Add embedding guides and interface reference ([5e5aeae](https://github.com/elicore/redis-web/commit/5e5aeae3dc2068f8a3d8bb87cbd07401e8accdde))
+- Add embedding guides and interface reference ([647e13b](https://github.com/elicore/redis-web/commit/647e13b57b8a758789409929f527dcb3357f6779))
 
-- Add AGENTS workflow and command guide ([0f53b7a](https://github.com/elicore/redis-web/commit/0f53b7ab5763ff073782c2d234b08aa483224e38))
+- Add AGENTS workflow and command guide ([9be089f](https://github.com/elicore/redis-web/commit/9be089f33fb0106adf74c8ab1eeaf834c1cbebf7))
 
-- Migrate to Starlight and add migration/deprecation guidance ([d581a1d](https://github.com/elicore/redis-web/commit/d581a1d305c99297b20afdaba0ddc3afa1758e1e))
+- Migrate to Starlight and add migration/deprecation guidance ([9ff85f4](https://github.com/elicore/redis-web/commit/9ff85f4c8b5403ff68b9b6af0f3a69966765ddc0))
 
-- *(changelog)* Update CHANGELOG.md ([05159a0](https://github.com/elicore/redis-web/commit/05159a0f486af33de7aa173c3ed4199121105c90))
+- *(changelog)* Update CHANGELOG.md ([75cf4f8](https://github.com/elicore/redis-web/commit/75cf4f8b1ce099a148df784b486141714fea57bf))
 
-- *(changelog)* Update CHANGELOG.md ([ee29161](https://github.com/elicore/redis-web/commit/ee291614f189c47ccbd5684754f9100a10054ed7))
+- *(changelog)* Update CHANGELOG.md ([f01c482](https://github.com/elicore/redis-web/commit/f01c4825ef3bd6d93bda321b3b0b6b58209ddc29))
 
-- Consolidate and restructure pages ([f6c281a](https://github.com/elicore/redis-web/commit/f6c281a923abe365e7360573463b350b3567dd43))
+- Consolidate and restructure pages ([99b4246](https://github.com/elicore/redis-web/commit/99b4246f529569fb2938ce8cbf5f2cc3e52f2f5a))
+
+- *(changelog)* Update CHANGELOG.md ([ace33cc](https://github.com/elicore/redis-web/commit/ace33cccf8fd0fdae326023ee7a76038fa1d2154))
 
 
 ### Features
 
-- Transition CI to Rust-based build and test, update GitHub Actions matrix with newer Ubuntu, Red Hat, and macOS versions, and upgrade Redis to 8.0. ([cf02c80](https://github.com/elicore/redis-web/commit/cf02c8080ef2d05e789e1066e1d7945355d78966))
+- Transition CI to Rust-based build and test, update GitHub Actions matrix with newer Ubuntu, Red Hat, and macOS versions, and upgrade Redis to 8.0. ([4fd54dc](https://github.com/elicore/redis-web/commit/4fd54dc7965476af5104108051cffcd447685052))
 
-- *(config)* Add schema-backed defaults and config generator ([6214996](https://github.com/elicore/redis-web/commit/62149968cbf32ef2f7f50f79e215159e6c9653d9))
+- *(config)* Add schema-backed defaults and config generator ([555648f](https://github.com/elicore/redis-web/commit/555648f0d97768e7f77aa4278bd27805a42b569e))
 
-- Add composite actions for Rust setup and build/test workflow ([407a204](https://github.com/elicore/redis-web/commit/407a2042bf4158a81ca6699d18a4efb39c67b9b8))
+- Add composite actions for Rust setup and build/test workflow ([8f233c4](https://github.com/elicore/redis-web/commit/8f233c4b4163dec0afded972b442c2e71223c348))
 
-- Add workflow for building and deploying Astro site to GitHub Pages ([38e6cff](https://github.com/elicore/redis-web/commit/38e6cff5ba0e6b2cbddab5190c9e26729cd4d0ad))
+- Add workflow for building and deploying Astro site to GitHub Pages ([633b316](https://github.com/elicore/redis-web/commit/633b316c889e882e6810ababc81d1d713994b0c3))
 
-- *(docs)* Replace 'nicolas/webdis' with 'elicore/webdis' across docs and add docker docs ([79d756c](https://github.com/elicore/redis-web/commit/79d756c8c4ad036963a0f8f5f11a6ba4c0aaf8dd))
+- *(docs)* Replace 'nicolas/webdis' with 'elicore/webdis' across docs and add docker docs ([d60db66](https://github.com/elicore/redis-web/commit/d60db665cea00410c9511153f9a1407ad4428728))
 
-- Implement ETag support for GET requests and add feature list to README  ([9f0b895](https://github.com/elicore/redis-web/commit/9f0b8956fedf8548599ec3e85ff135afb1190e62))
+- Implement ETag support for GET requests and add feature list to README  ([bc11cd5](https://github.com/elicore/redis-web/commit/bc11cd567f75bbbdf9488a3b4756468a5a7319d6))
 
-- Implement WebSocket raw RESP endpoint at /.raw   ([cb5afa3](https://github.com/elicore/redis-web/commit/cb5afa3655b53f1a86a41e8a2694c51339dfc321))
+- Implement WebSocket raw RESP endpoint at /.raw   ([f9a9908](https://github.com/elicore/redis-web/commit/f9a990867440c14583807910cfa09069479a4bd3))
 
-- Implement structured JSON output for INFO command  ([1ad16c0](https://github.com/elicore/redis-web/commit/1ad16c01b5f8e28cf55397dd80aa411d09dcfffd))
+- Implement structured JSON output for INFO command  ([dfbac1b](https://github.com/elicore/redis-web/commit/dfbac1b6a9113724b45dae0a533416ea44784eff))
 
-- True raw RESP output for .raw endpoint  ([b587d4f](https://github.com/elicore/redis-web/commit/b587d4f5bdfed89859f4608b73f9bc1d0459bb22))
+- True raw RESP output for .raw endpoint  ([f84eea6](https://github.com/elicore/redis-web/commit/f84eea60e36550ef4b3d6aad5a25e94f41dda413))
 
-- Upgrade Axum to 0.8 and redis-rs to 0.32, adapting to new routing syntax, WebSocket text types, and RESP3 value variants. ([bf20c37](https://github.com/elicore/redis-web/commit/bf20c37a425143e71e23163dfd9c72a73f83b0de))
+- Upgrade Axum to 0.8 and redis-rs to 0.32, adapting to new routing syntax, WebSocket text types, and RESP3 value variants. ([72830d7](https://github.com/elicore/redis-web/commit/72830d779900ab055f160dcb0d55b0c181b025f8))
 
-- Add JSONP support for HTTP responses  ([420e424](https://github.com/elicore/redis-web/commit/420e424d5807d175ef769a02e7c96334f7bc1b5a))
+- Add JSONP support for HTTP responses  ([f5b1440](https://github.com/elicore/redis-web/commit/f5b1440a7c6f894ba51c73a106decd0d9c1bd76b))
 
-- Expand $VARNAME placeholders in JSON config  ([4eaccf5](https://github.com/elicore/redis-web/commit/4eaccf5e6faf2f933db235257a7ba033a3f4f37a))
+- Expand $VARNAME placeholders in JSON config  ([857f874](https://github.com/elicore/redis-web/commit/857f874db4fa38a10bfc7e99b04070c194c66a09))
 
-- Honor hiredis.keep_alive_sec for Redis TCP keep-alive  ([6dd06b5](https://github.com/elicore/redis-web/commit/6dd06b5568064212f670460f9a7d86094b805d7b))
+- Honor hiredis.keep_alive_sec for Redis TCP keep-alive  ([51306e6](https://github.com/elicore/redis-web/commit/51306e67a2cde62f3a555e3ca5fd9b6315c5cd76))
 
-- URL encoding for `%2f` and `%2e` in command segments  ([4033bf0](https://github.com/elicore/redis-web/commit/4033bf0a55cd095271330b178db98c77f444ef5b))
+- URL encoding for `%2f` and `%2e` in command segments  ([4bdbc51](https://github.com/elicore/redis-web/commit/4bdbc519bcecb15ee51b03741f6a9b0f44414902))
 
-- Implement log_fsync durability modes  ([deb1dc5](https://github.com/elicore/redis-web/commit/deb1dc50a25bf06fffc797457f0836421d06757f))
+- Implement log_fsync durability modes  ([221ecce](https://github.com/elicore/redis-web/commit/221ecce120916d2461b0415bd791336d74def0ab))
 
-- Add chunked HTTP Pub/Sub JSON/JSONP parity   ([a12b946](https://github.com/elicore/redis-web/commit/a12b9468741492eb87e6333ecce18ee1ffd6ba39))
+- Add chunked HTTP Pub/Sub JSON/JSONP parity   ([bd33979](https://github.com/elicore/redis-web/commit/bd339796e2ac161dea43de7b1544156390333051))
 
-- *(parity)* Database selection via /<db>/ prefix   ([4102a92](https://github.com/elicore/redis-web/commit/4102a9281d767853d639929ac9c5210930ed76b0))
+- *(parity)* Database selection via /<db>/ prefix   ([b03b64d](https://github.com/elicore/redis-web/commit/b03b64dd03e117dc998cd1665e1ae584b860dabe))
 
-- Split into redis-web workspace crates with compatibility layer ([4950525](https://github.com/elicore/redis-web/commit/49505256de2ae7e7250e7414506547c7eb2ed9b4))
-
-
-### GHA
-
-- Upgrade Ubuntu, include Websocket tests ([9a29a85](https://github.com/elicore/redis-web/commit/9a29a85a944b3ddf52f4b9458edfc696cff1d5a6))
+- Split into redis-web workspace crates with compatibility layer ([96221bb](https://github.com/elicore/redis-web/commit/96221bbb87965393aaaee5f76a84a0de3f6a3ff6))
 
 
 ### Miscellaneous Tasks
 
-- Remove CodeQL workflow configuration ([243ab57](https://github.com/elicore/redis-web/commit/243ab57b8454c7637eefae1e45dd66275a95baed))
+- Remove CodeQL workflow configuration ([a66739d](https://github.com/elicore/redis-web/commit/a66739d7ba603b350ef59c2e18e2f71f0ad00da4))
 
-- Update workflow triggers to only allow manual dispatch ([76671b9](https://github.com/elicore/redis-web/commit/76671b9151b624c56b09fdbec998178a1bc158e8))
+- Update workflow triggers to only allow manual dispatch ([100d2d2](https://github.com/elicore/redis-web/commit/100d2d24a8d0329811a72906e4dfc13f6f87ff41))
 
-- *(scripts)* Make helper scripts executable ([37bb241](https://github.com/elicore/redis-web/commit/37bb24107ff5ecaf56f22937ee60041b7260d6a8))
+- *(scripts)* Make helper scripts executable ([780d2ed](https://github.com/elicore/redis-web/commit/780d2ed08faaa8c60c888a0f7fb8c99880619932))
 
-- *(make)* Remove docker helper targets per request ([3b49f8d](https://github.com/elicore/redis-web/commit/3b49f8d374b077223b288541e15a4116b15e3222))
+- *(make)* Remove docker helper targets per request ([0f8cce8](https://github.com/elicore/redis-web/commit/0f8cce88dd103b3eb0826c8b834c940795ad77b2))
 
-- Update redis to 1.0.3, cleanup makefile ([369352a](https://github.com/elicore/redis-web/commit/369352aa8df3293598eb7c6e215a16f1590cbd7d))
+- Update redis to 1.0.3, cleanup makefile ([7aef3ab](https://github.com/elicore/redis-web/commit/7aef3ab31d06dd46907e734ba2af726e2ec345cd))
 
-- Add json schema to config examples ([71538fe](https://github.com/elicore/redis-web/commit/71538fec826edee90ce86155ac6c48b93c8e876b))
+- Add json schema to config examples ([d42e626](https://github.com/elicore/redis-web/commit/d42e626ef1e2da12f68a648c437e0f5b05fca866))
 
-- *(deps)* Bump time from 0.3.44 to 0.3.47  ([970067c](https://github.com/elicore/redis-web/commit/970067c4c838f44d07e471237ba631e42331e8bd))
+- *(deps)* Bump time from 0.3.44 to 0.3.47  ([41653e8](https://github.com/elicore/redis-web/commit/41653e885c8cf392254dbef98a7e2c8ca58f44e6))
 
-- Update runtime ops, compose, and CI workflows for redis-web ([000e9b7](https://github.com/elicore/redis-web/commit/000e9b7a551f59953904e975ce9b61f46508d9c4))
+- Update runtime ops, compose, and CI workflows for redis-web ([681509a](https://github.com/elicore/redis-web/commit/681509ab66edf2f88166e94ceca2e3807faf1dbb))
 
-- Move prek to local developer config ([c0c3d91](https://github.com/elicore/redis-web/commit/c0c3d9101c45d0721d2d844f942f92a1ffdacd3b))
+- Move prek to local developer config ([28520f5](https://github.com/elicore/redis-web/commit/28520f531c549a38463f245ec5a5d4d35e9a3633))
 
-- Relocate docker assets and config examples to docs ([cd8df8d](https://github.com/elicore/redis-web/commit/cd8df8d33edfc2c4f64c494e508330c8b3deb534))
+- Relocate docker assets and config examples to docs ([1b498f9](https://github.com/elicore/redis-web/commit/1b498f9c1a417acf8527cd5ccaa5349dc3b90788))
 
 
 ### Parity
 
-- Redis UNIX socket support  ([071b208](https://github.com/elicore/redis-web/commit/071b208ea2bc6d7cd15132d90b3481e482068472))
+- Redis UNIX socket support  ([b977866](https://github.com/elicore/redis-web/commit/b97786608438b5aca5016ac46f6ca1a0ca4b67cd))
 
-- Custom content types and ?type= MIME overrides  ([95a7d04](https://github.com/elicore/redis-web/commit/95a7d0487d9f414519a09d5be9aa66bd3cdf6f85))
-
-
-### README
-
-- Add AWS ECR links, clean up Markdown ([09f0ccc](https://github.com/elicore/redis-web/commit/09f0ccc355db4034cbe91c1f0ef388cb93763b83))
-
-- Document WebSocket demo, add links, minor cleanup ([b1b300f](https://github.com/elicore/redis-web/commit/b1b300f508930fc71fd2972bafafb33361a6469e))
+- Custom content types and ?type= MIME overrides  ([e6776a9](https://github.com/elicore/redis-web/commit/e6776a9172b1126b306c16498eaf58307a52f6d4))
 
 
 ### Refactor
 
-- Move tests for parse_info_output to a dedicated test file ([d192743](https://github.com/elicore/redis-web/commit/d1927433ef56fa2684a9e6fb75b2ce16d2ac93b5))
+- Move tests for parse_info_output to a dedicated test file ([f9e6339](https://github.com/elicore/redis-web/commit/f9e6339d442d7d05ad7e6d3702ad90a4791853ea))
 
 
 ### Refactoring
 
-- Migrate build system to Cargo and improve integration tests with dynamic port allocation. ([36c578d](https://github.com/elicore/redis-web/commit/36c578d6116a55c13e21fbc8fe334a9b8284b939))
+- Migrate build system to Cargo and improve integration tests with dynamic port allocation. ([c4d975f](https://github.com/elicore/redis-web/commit/c4d975f90f52dfa76e79569f25636e3bbc2b641f))
 
-- Remove legacy Python/C tests and related files, update Rust tests, and add a new README. ([0fa63cc](https://github.com/elicore/redis-web/commit/0fa63cc899c4b9349594136dc6a7ef9dbde2972a))
+- Remove legacy Python/C tests and related files, update Rust tests, and add a new README. ([2b4e383](https://github.com/elicore/redis-web/commit/2b4e383b64d0fbc27121af49f8dc84ce60715d9d))
 
-- Decouple request parsing and command execution ([157a7e6](https://github.com/elicore/redis-web/commit/157a7e6ceeb3b2ec2262bf6956e01e1bae61eb93))
-
-
-### TODO
-
-- S/evhttp/libevent+http_parser/g ([85f38a0](https://github.com/elicore/redis-web/commit/85f38a023ac60178ef8972ecbdf623b8cfc4dc8c))
+- Decouple request parsing and command execution ([e0d7c67](https://github.com/elicore/redis-web/commit/e0d7c67b300ec8e99ce8f29e77e3fdde334fd2bb))
 
 
 ### Tests
 
-- Cover db-prefix error-path edge cases  ([a893ac7](https://github.com/elicore/redis-web/commit/a893ac7aba3d596761243751481e50e7bd2de89b))
+- Cover db-prefix error-path edge cases  ([cca36b0](https://github.com/elicore/redis-web/commit/cca36b0a0c172a618b2cc0432ff3454cfd8af0e5))
 
-- Cover uppercase percent-encoding parity  ([2736094](https://github.com/elicore/redis-web/commit/2736094c706341ac894bb18b5b72b414e702eebc))
+- Cover uppercase percent-encoding parity  ([4dc7684](https://github.com/elicore/redis-web/commit/4dc768488b21e6344802559ffd9f9ad599b264bf))
 
-- Cover uppercase percent-encoding parity ([ae34b7f](https://github.com/elicore/redis-web/commit/ae34b7f438ac00876e3ded22383a388883508b4e))
+- Split harness into unit/functional/integration tiers ([6664df1](https://github.com/elicore/redis-web/commit/6664df10b10f4ac8eb81cd79642e794b7d0860a1))
 
-- Split harness into unit/functional/integration tiers ([5d03814](https://github.com/elicore/redis-web/commit/5d0381468452f16bbae0b5692bf0d2b9baaccd0f))
-
-- Load legacy webdis fixture from docs examples ([95e6823](https://github.com/elicore/redis-web/commit/95e6823dd0ee041abebcea635390da4bd4a1a9cc))
-
-
-### WS
-
-- Better reuse of the cmd struct for WS clients ([e26d635](https://github.com/elicore/redis-web/commit/e26d6358e7a216427a88952b52a0dc4302a739fa))
-
-- Log commands ([dedfc42](https://github.com/elicore/redis-web/commit/dedfc42c676421338e72bba83a6b4857fb9715cb))
+- Load legacy webdis fixture from docs examples ([d44ba9d](https://github.com/elicore/redis-web/commit/d44ba9d0df9f15079d403e316107ad09d6997107))
 
 
 ### Ci
 
-- Parameterize Redis image and use actions-rs toolchain ([48733c8](https://github.com/elicore/redis-web/commit/48733c88ce6b4a1c5e3e717dac9ef4bd74c8aa04))
+- Parameterize Redis image and use actions-rs toolchain ([c82e17b](https://github.com/elicore/redis-web/commit/c82e17b426511366acdca4c518f26541a74b6e18))
 
-- *(workflow)* Use comma-separated TAGS env for build-push-action ([c94b3ea](https://github.com/elicore/redis-web/commit/c94b3ea4071f0b300f427ad90fd972d015f37bc1))
+- *(workflow)* Use comma-separated TAGS env for build-push-action ([591e486](https://github.com/elicore/redis-web/commit/591e48691dd577b41343c46ebd4cc8045de52d17))
 
-- Checkout repo before invoking local composite action ([95b93c4](https://github.com/elicore/redis-web/commit/95b93c4d35684c5e507318efe9506826bab90122))
+- Checkout repo before invoking local composite action ([5964917](https://github.com/elicore/redis-web/commit/5964917f2b1803fdc45c35b803d5bdf384971922))
 
-- Fix workflow expression syntax and lint issues ([2ebb6ab](https://github.com/elicore/redis-web/commit/2ebb6abde26026f5ab8cd2974889e4f5bf33b65e))
+- Fix workflow expression syntax and lint issues ([65bfcc6](https://github.com/elicore/redis-web/commit/65bfcc65feb0013bc59efb1a133b66a61a3f9451))
 
-- Fix linux toolchain setup and avoid invalid macOS cross-target ([816e3c6](https://github.com/elicore/redis-web/commit/816e3c6c6fdab8146267c95284761a7099714e98))
+- Fix linux toolchain setup and avoid invalid macOS cross-target ([ed003c4](https://github.com/elicore/redis-web/commit/ed003c4c877fdd955102441f4b25881ec3bed18f))
 
-- Drop unsupported macos-13 runner from matrix ([2204230](https://github.com/elicore/redis-web/commit/2204230fb0960d344597b4424fc442496bcfde0b))
+- Drop unsupported macos-13 runner from matrix ([b76b056](https://github.com/elicore/redis-web/commit/b76b05606e92f5d67c1c8442a31892ab09c724ee))
 
-- Simplify workflows and add local act validation ([6512080](https://github.com/elicore/redis-web/commit/6512080457b8c1d296c2903a0cd74ecafb2d490b))
+- Simplify workflows and add local act validation ([6641634](https://github.com/elicore/redis-web/commit/66416343cba3a698475c0eab96e41bb412338fb1))
 
-- Add release-please, changelog, and prek workflows ([1adbd6f](https://github.com/elicore/redis-web/commit/1adbd6f4f91968043874af397187fdf9834da284))
+- Add release-please, changelog, and prek workflows ([deffc4c](https://github.com/elicore/redis-web/commit/deffc4ce38e864dac2d9c870e39635b095f41f1a))
 
-- Skip docs or code jobs based on changes ([7a22edf](https://github.com/elicore/redis-web/commit/7a22edfc200b27073a4daec95015e13ff645be77))
+- Skip docs or code jobs based on changes ([4643c6f](https://github.com/elicore/redis-web/commit/4643c6fec1c84f9c9b85ad881512aa550858ba6c))
 
 
-### Slog.c
+### Root
 
-- Change level symbol to a single letter ([09bd76f](https://github.com/elicore/redis-web/commit/09bd76f3a80eda63f21efd9cdca444ae72e65e14))
+- Fork point snapshot ([9a120cb](https://github.com/elicore/redis-web/commit/9a120cb778a0796b54ba6dbfcdb5ee0287c83473))
 
 
 
