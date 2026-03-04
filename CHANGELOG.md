@@ -38,6 +38,8 @@ All notable changes to this project will be documented in this file.
 
 - *(changelog)* Update CHANGELOG.md ([2c42eb8](https://github.com/elicore/redis-web/commit/2c42eb8de229deb80033a7653f223b09c60796eb))
 
+- *(changelog)* Update CHANGELOG.md ([dfb88bd](https://github.com/elicore/redis-web/commit/dfb88bd5e6c3ebe192a47ef241a99ac3e4a2c2c1))
+
 
 ### Features
 
@@ -78,6 +80,8 @@ All notable changes to this project will be documented in this file.
 - Split into redis-web workspace crates with compatibility layer ([96221bb](https://github.com/elicore/redis-web/commit/96221bbb87965393aaaee5f76a84a0de3f6a3ff6))
 
 - Add hiredis-compat session bridge, crate scaffolding, tests, and docs ([ad379ac](https://github.com/elicore/redis-web/commit/ad379aca971e423c158809b01e479a3d785bb0ac))
+
+- *(config)* Add support for creating Config from a values object ([5518c80](https://github.com/elicore/redis-web/commit/5518c802aac0c5a7c7fe1588397dc48db4e44537))
 
 
 ### Miscellaneous Tasks
