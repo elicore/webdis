@@ -15,12 +15,14 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  attestations: write
   id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      REGISTRY: ghcr.io
       COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
       COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
     outputs:
@@ -32,30 +34,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Log in to Container registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare image tag variables
-        id: vars
+      - name: Set image metadata env
+        id: image-env
         run: |
-          OWNER_LC="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          IMAGE_NAME="ghcr.io/${OWNER_LC}/redis-web"
-          LEGACY_IMAGE_NAME="ghcr.io/${OWNER_LC}/webdis"
-          echo "IMAGE_NAME=${IMAGE_NAME}" >> "$GITHUB_ENV"
-          echo "LEGACY_IMAGE_NAME=${LEGACY_IMAGE_NAME}" >> "$GITHUB_ENV"
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
-            echo "IMAGE_TAG=${TAG_NAME}" >> "$GITHUB_ENV"
-          else
-            SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
-            echo "IMAGE_TAG=${SHORT_SHA}" >> "$GITHUB_ENV"
-          fi
-          # Put tags into a comma-separated value so docker/build-push-action receives them properly
-          echo "TAGS=${IMAGE_NAME}:${IMAGE_TAG},${IMAGE_NAME}:latest,${LEGACY_IMAGE_NAME}:${IMAGE_TAG},${LEGACY_IMAGE_NAME}:latest" >> "$GITHUB_ENV"
+          OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          echo "owner_lc=${OWNER_LC}" >> "$GITHUB_OUTPUT"
+          echo "owner_lc=${OWNER_LC}" >> "$GITHUB_ENV"
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.owner_lc }}/redis-web
+            ${{ env.REGISTRY }}/${{ env.owner_lc }}/webdis
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=
+          flavor: |
+            latest=auto
 
       - name: Build and push Docker images
         id: build-and-push
@@ -64,27 +69,35 @@ jobs:
           context: .
           push: true
           file: ./docker/Dockerfile
-          tags: ${{ env.TAGS }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
 
+      - name: Prepare image vars for cosign
+        if: env.COSIGN_KEY != ''
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${{ env.owner_lc }}/redis-web" >> "$GITHUB_ENV"
+          echo "LEGACY_IMAGE_NAME=ghcr.io/${{ env.owner_lc }}/webdis" >> "$GITHUB_ENV"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "IMAGE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          else
+            echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_ENV"
+          fi
+
       - name: Install cosign
-        if: ${{ env.COSIGN_KEY != '' }}
+        if: env.COSIGN_KEY != ''
         uses: sigstore/cosign-installer@v3
 
       - name: Decode COSIGN key
-        if: ${{ env.COSIGN_KEY != '' }}
+        if: env.COSIGN_KEY != ''
         run: |
           echo "${COSIGN_KEY}" | base64 --decode > "$HOME/cosign.key"
           chmod 600 "$HOME/cosign.key"
 
       - name: Sign images with cosign
-        if: ${{ env.COSIGN_KEY != '' }}
+        if: env.COSIGN_KEY != ''
         run: |
           cosign sign --key "$HOME/cosign.key" "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
           cosign sign --key "$HOME/cosign.key" "${{ env.IMAGE_NAME }}:latest"
           cosign sign --key "$HOME/cosign.key" "${{ env.LEGACY_IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
           cosign sign --key "$HOME/cosign.key" "${{ env.LEGACY_IMAGE_NAME }}:latest"
-
-      - name: Output digest
-        run: |
-          echo "image_digest=${{ steps.build-and-push.outputs.digest }}" >> "$GITHUB_OUTPUT"
