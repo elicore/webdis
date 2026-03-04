@@ -43,9 +43,15 @@ Common failure classes:
 
 Use the repository test targets plus dedicated compat suites as they are added.
 
-Useful commands:
+Compatibility command targets:
 
 ```bash
 cargo test -p redis-web --test integration_hiredis_compat_test
 make test_hiredis_compat_fixture
 ```
+
+These tests cover:
+
+- session creation and command roundtrips
+- Pub/Sub subscribe/unsubscribe stream behavior
+- session lifecycle cleanup and CI harness retry behavior

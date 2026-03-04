@@ -99,3 +99,41 @@ compat routes (default prefix: `/__compat`):
 
 These endpoints are intended for hiredis compatibility shims that need
 connection-scoped behavior while tunneling over HTTP/WebSocket.
+
+### Compatibility bridge examples
+
+Create a session and capture the session id:
+
+```bash
+BASE=http://127.0.0.1:7379
+SESSION_ID=$(curl -sS -X POST "$BASE/__compat/session" | \
+  sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p')
+```
+
+Issue command traffic to one session with RESP frames:
+
+```bash
+curl -sS -X POST "$BASE/__compat/cmd/$SESSION_ID.raw" \
+  --data-binary $'*3\r\n$3\r\nSET\r\n$6\r\nmy:key\r\n$7\r\nhello\r\n'
+
+curl -sS -X POST "$BASE/__compat/cmd/$SESSION_ID.raw" \
+  --data-binary $'*2\r\n$3\r\nGET\r\n$6\r\nmy:key\r\n'
+```
+
+Open the stream feed for pub/sub traffic:
+
+```bash
+curl -sS -X POST "$BASE/__compat/cmd/$SESSION_ID.raw" \
+  --data-binary $'*2\r\n$9\r\nSUBSCRIBE\r\n$6\r\nalpha\r\n' >/dev/null
+
+curl -N "$BASE/__compat/stream/$SESSION_ID.raw"
+```
+
+Remove a session after use:
+
+```bash
+curl -sS -X DELETE "$BASE/__compat/session/$SESSION_ID"
+```
+
+If HTTP-stream pub/sub is used, redis-web emits a one-time warning by default.
+Set `REDIS_WEB_COMPAT_MUTE_HTTP_PUBSUB_WARNING=1` to suppress it.

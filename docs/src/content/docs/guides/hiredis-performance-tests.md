@@ -43,6 +43,21 @@ Run:
 make bench_hiredis_compat
 ```
 
+With environment overrides:
+
+```bash
+HOST=127.0.0.1 PORT=7379 ITERATIONS=500 make bench_hiredis_compat
+```
+
+The harness prints timing summary per run, for example:
+
+```text
+[compat-bench] Creating compat session on http://127.0.0.1:7379/__compat/session
+[compat-bench] Running 500 SET/GET roundtrips
+[compat-bench] elapsed_sec=12 iterations=500
+[compat-bench] Cleaning up session
+```
+
 ## Caveats
 
 Do not compare runs collected on materially different hardware or background

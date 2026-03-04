@@ -40,6 +40,17 @@ clients.
 }
 ```
 
+Current behavior:
+
+- The bridge is enabled by default (`"enabled": true`) so existing deployments do not need extra config to expose `/__compat/*`.
+- `path_prefix` is normalized to a leading slash and used for session and stream routes.
+- `session_ttl_sec` controls idle cleanup and keeps stale sessions from leaking resources.
+- `max_sessions` limits concurrent active sessions.
+- `max_pipeline_commands` rejects oversized pipelined payloads in one request.
+
+For v1, transport mode selection is handled by redis-web only; direct/HTTP/ws mode
+switching and richer auth controls are currently not configured through `compat_hiredis`.
+
 ## Examples
 
 Canonical files (repo root):
@@ -120,6 +131,13 @@ Compatibility examples (docs only):
   "verbosity": 4,
   "logfile": "webdis.log"
 }
+```
+
+Runtime troubleshooting example:
+
+```text
+# mute fallback pub/sub warning from HTTP stream mode
+REDIS_WEB_COMPAT_MUTE_HTTP_PUBSUB_WARNING=1
 ```
 
 ### `webdis.prod.json`
