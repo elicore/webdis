@@ -19,8 +19,9 @@ fn resp_command(parts: &[&str]) -> Vec<u8> {
 async fn create_compat_session(client: &Client, port: u16) -> serde_json::Value {
     let mut last_status = None;
     let mut last_body = None;
+    let mut delay = Duration::from_millis(100);
 
-    for _ in 0..6 {
+    for _ in 0..20 {
         let resp = client
             .post(format!("http://127.0.0.1:{port}/__compat/session"))
             .send()
@@ -41,7 +42,8 @@ async fn create_compat_session(client: &Client, port: u16) -> serde_json::Value 
             break;
         }
 
-        sleep(Duration::from_millis(100)).await;
+        sleep(delay).await;
+        delay = std::cmp::min(delay.saturating_mul(2), Duration::from_millis(1_000));
     }
 
     panic!(
