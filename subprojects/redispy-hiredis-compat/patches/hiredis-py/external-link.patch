@@ -1,0 +1,85 @@
+diff --git a/setup.py b/setup.py
+index 4c65c8c..57f7175 100755
+--- a/setup.py
++++ b/setup.py
+@@ -7,6 +7,7 @@ except ImportError:
+ import importlib
+ import glob
+ import io
++import os
+ import sys
+ 
+ 
+@@ -18,30 +19,54 @@ def version():
+ 
+ 
+ def get_sources():
+-    hiredis_sources = ("alloc", "async", "hiredis", "net", "read", "sds", "sockcompat")
+-    return sorted(glob.glob("src/*.c") + ["vendor/hiredis/%s.c" % src for src in hiredis_sources])
++    # Force external hiredis linking from redis-web compat artifacts.
++    return sorted(glob.glob("src/*.c"))
++
++
++def _split_env_flags(name):
++    value = os.environ.get(name, "")
++    return [flag for flag in value.split() if flag]
+ 
+ 
+ def get_linker_args():
+-    if 'win32' in sys.platform or 'darwin' in sys.platform:
+-        return []
++    args = _split_env_flags("REDIS_WEB_HIREDIS_LINKER_FLAGS")
++    if 'win32' in sys.platform:
++        return args
++    elif 'darwin' in sys.platform:
++        return args + ["-Wl,-undefined,error"]
+     else:
+-        return ["-Wl,-Bsymbolic", ]
++        return args + ["-Wl,--no-undefined", "-Wl,-Bsymbolic"]
+ 
+ 
+ def get_compiler_args():
+     if 'win32' in sys.platform:
+-        return []
++        return _split_env_flags("REDIS_WEB_HIREDIS_COMPILER_FLAGS")
+     else:
+-        return ["-std=c99"]
++        return ["-std=c99"] + _split_env_flags("REDIS_WEB_HIREDIS_COMPILER_FLAGS")
+ 
+ 
+ def get_libraries():
+     if 'win32' in sys.platform:
+-        return ["ws2_32", ]
++        return ["hiredis", "ws2_32", ]
+     else:
+-        return []
++        return ["hiredis"]
++
++
++def get_include_dirs():
++    include_dirs = []
++    env_include = os.environ.get("REDIS_WEB_HIREDIS_INCLUDE_DIR")
++    if env_include:
++        include_dirs.append(env_include)
++    return include_dirs
++
++
++def get_library_dirs():
++    library_dirs = []
++    env_lib = os.environ.get("REDIS_WEB_HIREDIS_LIB_DIR")
++    if env_lib:
++        library_dirs.append(env_lib)
++    return library_dirs
+ 
+ 
+ ext = Extension("hiredis.hiredis",
+                 sources=get_sources(),
+                 extra_compile_args=get_compiler_args(),
+                 extra_link_args=get_linker_args(),
+                 libraries=get_libraries(),
+-                include_dirs=["vendor"])
++                include_dirs=get_include_dirs(),
++                library_dirs=get_library_dirs())
+ 
+ setup(
+     name="hiredis",

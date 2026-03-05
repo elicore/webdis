@@ -1,0 +1,11 @@
+updated_at = "2026-03-04T21:29:26Z"
+
+[redis_py]
+repo = "https://github.com/redis/redis-py.git"
+tag = "v7.2.1"
+sha = "56859cf9cc635bb25b4911a7f1653a3b64514844"
+
+[hiredis_py]
+repo = "https://github.com/redis/hiredis-py.git"
+tag = "v3.3.0"
+sha = "187d0f387afed58a955a42ea8c5467100871f98b"

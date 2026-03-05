@@ -1,0 +1,6 @@
+.venv/
+.artifacts/*
+!.artifacts/.gitkeep
+.dist/*
+!.dist/.gitkeep
+.work/
