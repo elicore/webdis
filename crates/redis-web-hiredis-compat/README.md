@@ -4,16 +4,20 @@
 that expect `hiredis` symbols.
 
 Current status:
-- Shared/static library artifact scaffolding is in place.
-- Core sync and async symbols are exported.
-- Command execution is currently a compatibility scaffold and returns explicit
-  unsupported errors while the transport bridge is implemented.
+- Staged artifacts provide full upstream hiredis runtime behavior by building
+  upstream hiredis C sources (core + async) in the harness pipeline.
+- Exported symbol parity and public header API name parity are validated against
+  pinned upstream hiredis in `make compat_redispy_audit`.
+- redis-py/hiredis-py runtime behavior is validated in
+  `make compat_redispy_test` and runtime matrix targets.
 
 Headers:
 - `include/hiredis/hiredis.h`
 - `include/hiredis/read.h`
 - `include/hiredis/alloc.h`
 - `include/hiredis/sds.h`
+- `include/hiredis/async.h`
+- `include/hiredis/net.h`
 
 pkg-config:
 - `pkgconfig/hiredis.pc`

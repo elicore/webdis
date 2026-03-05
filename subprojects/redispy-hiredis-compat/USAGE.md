@@ -13,8 +13,8 @@ Current scope in this repository:
 
 - Full upstream hiredis exported symbol parity for the pinned upstream version used by the harness.
 - Full upstream public header API name parity for `hiredis.h`, `read.h`, `alloc.h`, and `sds.h`.
-- Parser/reader ABI used by `hiredis-py` implemented and validated through redis-py compatibility runs.
-- Transport/async behavior still partially scaffolded in compat for now (symbols are present; behavior is explicitly unsupported in those paths).
+- Runtime behavior parity is provided by building and staging upstream hiredis core + async C sources in `scripts/build-hiredis-compat.sh`.
+- Parser/reader and transport/async behavior are validated through redis-py compatibility runs and runtime fixtures.
 
 ## Architecture
 
@@ -174,8 +174,10 @@ To make upstream parity diffs fail the audit, set `STRICT_UPSTREAM_PARITY=1`.
   - `crates/redis-web-hiredis-compat/include/hiredis/read.h`
   - `crates/redis-web-hiredis-compat/include/hiredis/alloc.h`
   - `crates/redis-web-hiredis-compat/include/hiredis/sds.h`
+  - `crates/redis-web-hiredis-compat/include/hiredis/async.h`
 - Library names are ABI-compatible (`libhiredis`).
 - Symbol and header API parity is full for the pinned upstream version in this harness.
-- Runtime behavior parity is still in progress for transport/async paths; those paths intentionally return explicit unsupported errors today.
+- Runtime behavior parity is provided by upstream hiredis C runtime in staged artifacts.
+- Current intentional non-parity: SSL helper symbols remain stubbed unless SSL runtime is explicitly enabled.
 
 If integrating a new hiredis-based consumer, treat parser/symbol linkage as the first gate, then validate behavior with that library's native test suite.

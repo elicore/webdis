@@ -40,8 +40,9 @@ Artifact scope:
 
 Current implementation notes:
 
-- `redis-web-hiredis-compat` exposes unsupported stubs for sync command execution in v1; the transport bridge in redis-web is the implemented compatibility path today.
-- Async/SSL symbols are intentionally stubbed in v1 (`ERR`/`null` path).
+- Staged `libhiredis` artifacts provide runtime parity by building upstream hiredis core + async C runtime sources used by this repository harness.
+- Strict symbol/header parity against pinned upstream hiredis is validated by `STRICT_UPSTREAM_PARITY=1 make compat_redispy_audit`.
+- SSL helper symbols remain intentionally stubbed unless SSL runtime support is explicitly enabled.
 
 ## `compat_hiredis` configuration
 
