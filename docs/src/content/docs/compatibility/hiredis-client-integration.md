@@ -12,11 +12,12 @@ This page documents the hiredis compatibility feature and integration patterns f
 
 `redis-web-hiredis-compat` exports a hiredis-compatible C ABI (`libhiredis`) so existing consumers can relink without source-level changes.
 
-Current implementation focus:
+Current implementation status:
 
-- Parser/reader ABI required by `hiredis-py`
-- SDS, allocator, and command formatting symbols used by `hiredis-py`
-- Explicit exported stubs for unsupported command-execution paths
+- Full upstream hiredis symbol parity for the pinned upstream version in this repository harness
+- Full upstream header API name parity for `hiredis.h`, `read.h`, `alloc.h`, and `sds.h`
+- Parser/reader ABI required by `hiredis-py`, validated by redis-py standalone compatibility runs
+- Some transport/async behavior is still scaffolded and intentionally returns unsupported errors
 
 ## Integration architecture
 
@@ -122,16 +123,16 @@ Optional audit hardening:
 
 - `make compat_redispy_audit` runs:
   - hiredis-py extension required-symbol gate (hard fail on missing).
-  - upstream hiredis export and header API parity reports (informational by default).
-- Set `STRICT_UPSTREAM_PARITY=1` to fail on upstream parity diffs.
+  - upstream hiredis export and header API parity reports.
+- Set `STRICT_UPSTREAM_PARITY=1` to hard-fail if any upstream parity gaps are detected.
 
 ## Compatibility limits
 
-This is an ABI compatibility effort, not full hiredis feature parity yet.
+This is now full symbol/header ABI parity for the pinned upstream hiredis version, but not yet full behavior parity.
 
-- Supported: symbol/link compatibility required by the current redis-py + hiredis-py integration path.
-- In progress: broader hiredis command/transport behavior beyond parser-focused paths.
-- Intentional current non-parity: async/transport APIs outside the parser-first hiredis-py path remain scaffolded and show up in upstream parity artifacts.
+- Supported: redis-py + hiredis-py compatibility path and full exported symbol/header API parity checks.
+- In progress: broader hiredis runtime behavior parity for transport and async execution paths.
+- Intentional current non-parity: some async/transport calls are symbol-complete but still return explicit unsupported errors.
 
 For implementation-level details and local harness usage, see:
 

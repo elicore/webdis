@@ -11,9 +11,10 @@ This guide documents the `redis-web-hiredis-compat` feature and how to consume i
 
 Current scope in this repository:
 
-- Reader/parser ABI used by `hiredis-py` is implemented.
-- SDS/allocator and command formatting symbols used by `hiredis-py` are implemented.
-- Connection/command execution symbols are exported but remain scaffolded (return unsupported in this phase).
+- Full upstream hiredis exported symbol parity for the pinned upstream version used by the harness.
+- Full upstream public header API name parity for `hiredis.h`, `read.h`, `alloc.h`, and `sds.h`.
+- Parser/reader ABI used by `hiredis-py` implemented and validated through redis-py compatibility runs.
+- Transport/async behavior still partially scaffolded in compat for now (symbols are present; behavior is explicitly unsupported in those paths).
 
 ## Architecture
 
@@ -156,13 +157,13 @@ subprojects/redispy-hiredis-compat/scripts/audit-hiredis-symbols.sh
 This catches missing symbols before runtime and produces two parity tiers:
 
 - Hard gate: symbols required by the built `hiredis-py` extension must exist in compat `libhiredis`.
-- Informational parity: diff vs upstream hiredis exported symbols and header API names.
+- Upstream parity: diff vs upstream hiredis exported symbols and header API names.
 
 Artifacts are written to `subprojects/redispy-hiredis-compat/.artifacts/`, including:
 
 - `hiredis-missing-symbols.txt` (hard fail if non-empty).
-- `hiredis-missing-vs-upstream-symbols.txt` (informational by default).
-- `hiredis-missing-header-api.txt` (informational by default).
+- `hiredis-missing-vs-upstream-symbols.txt` (should be empty for full symbol parity).
+- `hiredis-missing-header-api.txt` (should be empty for full header API parity).
 
 To make upstream parity diffs fail the audit, set `STRICT_UPSTREAM_PARITY=1`.
 
@@ -174,6 +175,7 @@ To make upstream parity diffs fail the audit, set `STRICT_UPSTREAM_PARITY=1`.
   - `crates/redis-web-hiredis-compat/include/hiredis/alloc.h`
   - `crates/redis-web-hiredis-compat/include/hiredis/sds.h`
 - Library names are ABI-compatible (`libhiredis`).
-- Not all hiredis behavior is implemented yet; unsupported execution paths return explicit errors.
+- Symbol and header API parity is full for the pinned upstream version in this harness.
+- Runtime behavior parity is still in progress for transport/async paths; those paths intentionally return explicit unsupported errors today.
 
 If integrating a new hiredis-based consumer, treat parser/symbol linkage as the first gate, then validate behavior with that library's native test suite.
