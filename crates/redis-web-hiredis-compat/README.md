@@ -11,7 +11,17 @@ Current status:
 
 Headers:
 - `include/hiredis/hiredis.h`
+- `include/hiredis/read.h`
+- `include/hiredis/alloc.h`
+- `include/hiredis/sds.h`
 
 pkg-config:
 - `pkgconfig/hiredis.pc`
 - `pkgconfig/redisweb-hiredis.pc`
+
+
+Integration guide:
+- `subprojects/redispy-hiredis-compat/USAGE.md`
+  - redis-py integration flow
+  - architecture diagrams
+  - generic hiredis consumer integration steps

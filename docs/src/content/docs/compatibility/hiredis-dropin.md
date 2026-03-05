@@ -8,6 +8,9 @@ description: Compatibility scope, status, and integration guidance for the redis
 The hiredis compatibility track aims to let existing hiredis-based clients relink
 against a redis-web-backed library with minimal code changes.
 
+For end-to-end client usage, including redis-py and generic hiredis-linked libraries,
+see [compatibility/hiredis-client-integration](./hiredis-client-integration.md).
+
 Target ABI:
 - hiredis 1.3.x (sync API first)
 
