@@ -9,11 +9,11 @@ DIST_DIR="$ROOT_DIR/target/hiredis-compat-dist"
 
 cc \
   -I"$DIST_DIR/include" \
-  "$CRATE_DIR/tests/fixtures/smoke.c" \
+  "$CRATE_DIR/tests/fixtures/abi_layout.c" \
   -L"$DIST_DIR/lib" \
   -lhiredis \
-  -o "$DIST_DIR/smoke"
+  -o "$DIST_DIR/abi_layout"
 
-"$DIST_DIR/smoke"
+"$DIST_DIR/abi_layout"
 
-echo "C fixture compiled successfully against hiredis compatibility artifacts"
+echo "ABI layout fixture passed"

@@ -39,6 +39,16 @@ compat_redispy_audit:
 compat_redispy_regression:
 	./subprojects/redispy-hiredis-compat/scripts/test-setup-test-env.sh
 
+compat_runtime_matrix:
+	./crates/redis-web-hiredis-compat/tests/compile-abi-layout.sh
+	./subprojects/redispy-hiredis-compat/scripts/audit-no-unsupported-sync.sh
+
+compat_async_matrix:
+	./subprojects/redispy-hiredis-compat/scripts/run-redispy-runtime-matrix.sh
+
+compat_no_unsupported_sync_audit:
+	./subprojects/redispy-hiredis-compat/scripts/audit-no-unsupported-sync.sh
+
 clean:
 	cargo clean
 
@@ -78,4 +88,4 @@ ci_local_linux_arm:
 
 ci_local: ci_local_linux ci_local_linux_arm
 
-.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat compat_redispy_bootstrap compat_redispy_build_hiredis compat_redispy_test compat_redispy_audit compat_redispy_regression clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm
+.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat compat_redispy_bootstrap compat_redispy_build_hiredis compat_redispy_test compat_redispy_audit compat_redispy_regression compat_runtime_matrix compat_async_matrix compat_no_unsupported_sync_audit clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm
