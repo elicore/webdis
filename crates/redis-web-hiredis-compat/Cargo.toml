@@ -2,6 +2,7 @@
 name = "redis-web-hiredis-compat"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [lib]
 name = "redisweb_hiredis"
@@ -9,3 +10,6 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 libc = "0.2"
+
+[build-dependencies]
+cc = "1.1"

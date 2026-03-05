@@ -1709,6 +1709,7 @@ dependencies = [
 name = "redis-web-hiredis-compat"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "libc",
 ]
 
