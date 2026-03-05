@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 
 - Stabilize hiredis compat session creation in CI ([1a65a60](https://github.com/elicore/redis-web/commit/1a65a60a64864a0c59aa5c2c5ce185226583ca67))
 
+- *(hiredis-compat)* Make compat crate pass -D warnings sanity builds ([9368aaa](https://github.com/elicore/redis-web/commit/9368aaa03ff4c0ae7da30ae07c8c1384eaee4988))
+
 
 ### Documentation
 
@@ -43,6 +45,8 @@ All notable changes to this project will be documented in this file.
 - *(compatibility)* Enhance hiredis drop-in documentation with feature set, configuration examples, and operational notes ([923fa52](https://github.com/elicore/redis-web/commit/923fa529f56077d5e605e6fb467e5564eefbff7a))
 
 - *(changelog)* Update CHANGELOG.md ([20bb3bf](https://github.com/elicore/redis-web/commit/20bb3bfeb808706739859481f0ec521a588093cf))
+
+- *(changelog)* Update CHANGELOG.md ([fa0cabf](https://github.com/elicore/redis-web/commit/fa0cabf86744c2a59d42f63cfe5264be94059f5e))
 
 
 ### Features
@@ -86,6 +90,10 @@ All notable changes to this project will be documented in this file.
 - Add hiredis-compat session bridge, crate scaffolding, tests, and docs ([ad379ac](https://github.com/elicore/redis-web/commit/ad379aca971e423c158809b01e479a3d785bb0ac))
 
 - *(config)* Add support for creating Config from a values object ([5518c80](https://github.com/elicore/redis-web/commit/5518c802aac0c5a7c7fe1588397dc48db4e44537))
+
+- *(hiredis-compat)* Implement parser/sds/allocator ABI for hiredis-py ([1586ed0](https://github.com/elicore/redis-web/commit/1586ed0ea7a97a5c515d0e384a8368d01816b4ee))
+
+- *(redispy-compat-harness)* Add pinned subproject, patch pipeline, and test runner ([4b4c408](https://github.com/elicore/redis-web/commit/4b4c408ee700273f2cf4cf5eb8e7794f86d2f8e9))
 
 
 ### Miscellaneous Tasks
@@ -149,6 +157,11 @@ All notable changes to this project will be documented in this file.
 - Avoid codeql sensitive session_id flow in compat integration tests ([1b310f8](https://github.com/elicore/redis-web/commit/1b310f8bd506b6bdfb02b96fa038673024220cac))
 
 - Increase compat session retry window for CI redis startup ([d430ea8](https://github.com/elicore/redis-web/commit/d430ea8d179ab015f1bed9b0ed0b52e53f459bdf))
+
+
+### Build
+
+- *(hiredis-compat)* Install complete hiredis header set into dist artifacts ([abb3fb5](https://github.com/elicore/redis-web/commit/abb3fb57ac791d26f388bb95205123ab65288abf))
 
 
 ### Ci
