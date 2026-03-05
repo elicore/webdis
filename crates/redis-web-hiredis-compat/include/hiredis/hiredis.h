@@ -1,21 +1,27 @@
-#ifndef REDIS_WEB_HIREDIS_H
-#define REDIS_WEB_HIREDIS_H
+#ifndef REDIS_WEB_COMPAT_HIREDIS_H
+#define REDIS_WEB_COMPAT_HIREDIS_H
 
+#include <stdarg.h>
 #include <stddef.h>
+
+#include <hiredis/alloc.h>
+#include <hiredis/read.h>
+#include <hiredis/sds.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define REDIS_OK 0
-#define REDIS_ERR -1
-
-#define REDIS_REPLY_STRING 1
-#define REDIS_REPLY_ARRAY 2
-#define REDIS_REPLY_INTEGER 3
-#define REDIS_REPLY_NIL 4
-#define REDIS_REPLY_STATUS 5
-#define REDIS_REPLY_ERROR 6
+typedef struct redisReply {
+  int type;
+  long long integer;
+  double dval;
+  size_t len;
+  char *str;
+  char vtype[4];
+  size_t elements;
+  struct redisReply **element;
+} redisReply;
 
 typedef struct redisContext {
   int err;
@@ -27,15 +33,6 @@ typedef struct redisContext {
   int connection_type;
   void *private_data;
 } redisContext;
-
-typedef struct redisReply {
-  int type;
-  long long integer;
-  size_t len;
-  char *str;
-  size_t elements;
-  struct redisReply **element;
-} redisReply;
 
 redisContext *redisConnect(const char *ip, int port);
 redisContext *redisConnectWithTimeout(const char *ip, int port, void *timeout);
@@ -52,6 +49,13 @@ int redisAppendCommandArgv(redisContext *c, int argc, const char **argv, const s
 int redisGetReply(redisContext *c, void **reply);
 
 void freeReplyObject(void *reply);
+
+int redisvFormatCommand(char **target, const char *format, va_list ap);
+int redisFormatCommand(char **target, const char *format, ...);
+long long redisFormatCommandArgv(char **target, int argc, const char **argv, const size_t *argvlen);
+long long redisFormatSdsCommandArgv(sds *target, int argc, const char **argv, const size_t *argvlen);
+void redisFreeCommand(char *cmd);
+void redisFreeSdsCommand(sds cmd);
 
 void *redisAsyncConnect(const char *ip, int port);
 void *redisAsyncConnectUnix(const char *path);

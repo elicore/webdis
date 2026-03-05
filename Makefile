@@ -24,6 +24,15 @@ test_hiredis_compat_fixture:
 bench_hiredis_compat:
 	./crates/redis-web/tests/bench-hiredis-compat.sh
 
+compat_redispy_bootstrap:
+	./subprojects/redispy-hiredis-compat/scripts/bootstrap.sh
+
+compat_redispy_build_hiredis:
+	./subprojects/redispy-hiredis-compat/scripts/build-hiredis-wheel.sh
+
+compat_redispy_test:
+	./subprojects/redispy-hiredis-compat/scripts/run-redispy-tests.sh
+
 clean:
 	cargo clean
 
@@ -63,4 +72,4 @@ ci_local_linux_arm:
 
 ci_local: ci_local_linux ci_local_linux_arm
 
-.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm
+.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat compat_redispy_bootstrap compat_redispy_build_hiredis compat_redispy_test clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm

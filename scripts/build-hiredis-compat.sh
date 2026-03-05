@@ -10,7 +10,7 @@ mkdir -p "$OUT_DIR/lib" "$OUT_DIR/include/hiredis" "$OUT_DIR/pkgconfig"
 
 cargo build -p redis-web-hiredis-compat --release
 
-cp "$CRATE_DIR/include/hiredis/hiredis.h" "$OUT_DIR/include/hiredis/hiredis.h"
+cp "$CRATE_DIR/include/hiredis/"*.h "$OUT_DIR/include/hiredis/"
 cp "$CRATE_DIR/pkgconfig/hiredis.pc" "$OUT_DIR/pkgconfig/hiredis.pc"
 cp "$CRATE_DIR/pkgconfig/redisweb-hiredis.pc" "$OUT_DIR/pkgconfig/redisweb-hiredis.pc"
 
