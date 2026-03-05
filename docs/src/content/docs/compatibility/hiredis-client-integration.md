@@ -50,6 +50,8 @@ The local harness in this repository automates this flow:
 ```bash
 make compat_redispy_bootstrap
 make compat_redispy_build_hiredis
+make compat_redispy_audit
+make compat_redispy_regression
 make compat_redispy_test
 ```
 
@@ -61,6 +63,8 @@ subprojects/redispy-hiredis-compat/scripts/build-hiredis-wheel.sh
 subprojects/redispy-hiredis-compat/scripts/setup-test-env.sh
 subprojects/redispy-hiredis-compat/scripts/run-redispy-tests.sh
 ```
+
+`setup-test-env.sh` defaults to build/install only (`VERIFY_HIREDIS_ACTIVE=0`), so it does not require a live Redis endpoint unless runtime verification is explicitly enabled.
 
 ### Runtime verification
 
@@ -114,12 +118,20 @@ export LD_LIBRARY_PATH="subprojects/redispy-hiredis-compat/.dist/hiredis/lib:$LD
 
 5. Validate with the consumer's own tests.
 
+Optional audit hardening:
+
+- `make compat_redispy_audit` runs:
+  - hiredis-py extension required-symbol gate (hard fail on missing).
+  - upstream hiredis export and header API parity reports (informational by default).
+- Set `STRICT_UPSTREAM_PARITY=1` to fail on upstream parity diffs.
+
 ## Compatibility limits
 
 This is an ABI compatibility effort, not full hiredis feature parity yet.
 
 - Supported: symbol/link compatibility required by the current redis-py + hiredis-py integration path.
 - In progress: broader hiredis command/transport behavior beyond parser-focused paths.
+- Intentional current non-parity: async/transport APIs outside the parser-first hiredis-py path remain scaffolded and show up in upstream parity artifacts.
 
 For implementation-level details and local harness usage, see:
 

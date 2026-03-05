@@ -42,6 +42,8 @@ From repository root:
 ```bash
 make compat_redispy_bootstrap
 make compat_redispy_build_hiredis
+make compat_redispy_audit
+make compat_redispy_regression
 make compat_redispy_test
 ```
 
@@ -66,6 +68,12 @@ This validates:
 - `hiredis` Python module imports successfully.
 - `redis-py` selected a hiredis-based parser.
 - Redis `PING` succeeds with the configured endpoint.
+
+`setup-test-env.sh` no longer requires a live Redis server by default.
+
+- Default: `VERIFY_HIREDIS_ACTIVE=0` (skip runtime ping during environment setup).
+- Optional runtime check: `VERIFY_HIREDIS_ACTIVE=1`.
+- Optional verify script override (for regression testing): `VERIFY_HIREDIS_SCRIPT=/path/to/script.py`.
 
 ### Redis test topology
 
@@ -145,7 +153,18 @@ For consumers similar to `hiredis-py`, run:
 subprojects/redispy-hiredis-compat/scripts/audit-hiredis-symbols.sh
 ```
 
-This catches missing symbols before runtime.
+This catches missing symbols before runtime and produces two parity tiers:
+
+- Hard gate: symbols required by the built `hiredis-py` extension must exist in compat `libhiredis`.
+- Informational parity: diff vs upstream hiredis exported symbols and header API names.
+
+Artifacts are written to `subprojects/redispy-hiredis-compat/.artifacts/`, including:
+
+- `hiredis-missing-symbols.txt` (hard fail if non-empty).
+- `hiredis-missing-vs-upstream-symbols.txt` (informational by default).
+- `hiredis-missing-header-api.txt` (informational by default).
+
+To make upstream parity diffs fail the audit, set `STRICT_UPSTREAM_PARITY=1`.
 
 ## Compatibility contract and limits
 
