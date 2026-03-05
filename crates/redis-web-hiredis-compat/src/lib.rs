@@ -1,4 +1,4 @@
-use libc::{c_char, c_double, c_int, c_longlong, c_void, size_t};
+use libc::{c_char, c_double, c_int, c_longlong, c_uint, c_void, size_t, ssize_t, timeval};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::mem;
@@ -244,6 +244,10 @@ fn new_context_with_error(msg: &str) -> *mut redisContext {
         private_data: ptr::null_mut(),
     });
     write_errstr(&mut ctx, msg);
+    unsafe {
+        ctx.reader = redisReaderCreate() as *mut c_void;
+        ctx.obuf = sdsempty() as *mut c_void;
+    }
     Box::into_raw(ctx)
 }
 
@@ -1119,7 +1123,7 @@ pub extern "C" fn redisConnect(_ip: *const c_char, _port: c_int) -> *mut redisCo
 pub extern "C" fn redisConnectWithTimeout(
     _ip: *const c_char,
     _port: c_int,
-    _timeout: c_void,
+    _timeout: timeval,
 ) -> *mut redisContext {
     new_context_with_error(ERR_UNSUPPORTED)
 }
@@ -1146,6 +1150,14 @@ pub extern "C" fn redisFree(ctx: *mut redisContext) {
         return;
     }
     unsafe {
+        if !(*ctx).obuf.is_null() {
+            sdsfree((*ctx).obuf as *mut c_char);
+            (*ctx).obuf = ptr::null_mut();
+        }
+        if !(*ctx).reader.is_null() {
+            redisReaderFree((*ctx).reader as *mut redisReader);
+            (*ctx).reader = ptr::null_mut();
+        }
         drop(Box::from_raw(ctx));
     }
 }
@@ -1190,6 +1202,15 @@ pub extern "C" fn redisAppendCommandArgv(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn redisvAppendCommand(
+    _ctx: *mut redisContext,
+    _format: *const c_char,
+    _ap: *mut c_void,
+) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
 pub extern "C" fn redisGetReply(ctx: *mut redisContext, reply: *mut *mut c_void) -> c_int {
     unsafe {
         if !reply.is_null() {
@@ -1199,6 +1220,299 @@ pub extern "C" fn redisGetReply(ctx: *mut redisContext, reply: *mut *mut c_void)
             write_errstr(ctx, ERR_UNSUPPORTED);
         }
     }
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisGetReplyFromReader(ctx: *mut redisContext, reply: *mut *mut c_void) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    if (*ctx).reader.is_null() {
+        if !reply.is_null() {
+            *reply = ptr::null_mut();
+        }
+        write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+        return REDIS_ERR;
+    }
+    redisReaderGetReply((*ctx).reader as *mut redisReader, reply)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAppendFormattedCommand(
+    ctx: *mut redisContext,
+    cmd: *const c_char,
+    len: size_t,
+) -> c_int {
+    if ctx.is_null() || (cmd.is_null() && len > 0) {
+        return REDIS_ERR;
+    }
+
+    let current = if (*ctx).obuf.is_null() {
+        sdsempty()
+    } else {
+        (*ctx).obuf as *mut c_char
+    };
+
+    if current.is_null() {
+        return REDIS_ERR;
+    }
+
+    let next = sdscatlen(current, cmd as *const c_void, len);
+    if next.is_null() {
+        return REDIS_ERR;
+    }
+    (*ctx).obuf = next as *mut c_void;
+    REDIS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisBufferWrite(ctx: *mut redisContext, done: *mut c_int) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    if !done.is_null() {
+        *done = 1;
+    }
+    if !(*ctx).obuf.is_null() {
+        sdsclear((*ctx).obuf as *mut c_char);
+    }
+    REDIS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisBufferRead(ctx: *mut redisContext) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisSetTimeout(ctx: *mut redisContext, _tv: timeval) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextSetTimeout(ctx: *mut redisContext, _tv: timeval) -> c_int {
+    redisSetTimeout(ctx, _tv)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextSetTcpUserTimeout(ctx: *mut redisContext, _timeout: c_uint) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisSetTcpUserTimeout(ctx: *mut redisContext, timeout: c_uint) -> c_int {
+    redisContextSetTcpUserTimeout(ctx, timeout)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextUpdateConnectTimeout(ctx: *mut redisContext, _timeout: *const timeval) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    REDIS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextUpdateCommandTimeout(ctx: *mut redisContext, _timeout: *const timeval) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    REDIS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisKeepAlive(ctx: *mut redisContext, _interval: c_int) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisEnableKeepAlive(ctx: *mut redisContext) -> c_int {
+    redisKeepAlive(ctx, 15)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisEnableKeepAliveWithInterval(ctx: *mut redisContext, interval: c_int) -> c_int {
+    redisKeepAlive(ctx, interval)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisSetTcpNoDelay(ctx: *mut redisContext) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisCheckSocketError(ctx: *mut redisContext) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    if (*ctx).err == REDIS_OK {
+        REDIS_OK
+    } else {
+        REDIS_ERR
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisCheckConnectDone(ctx: *mut redisContext, completed: *mut c_int) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    if !completed.is_null() {
+        *completed = 0;
+    }
+    if (*ctx).err == REDIS_OK {
+        REDIS_OK
+    } else {
+        REDIS_ERR
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisNetClose(ctx: *mut redisContext) {
+    if ctx.is_null() {
+        return;
+    }
+    (*ctx).fd = -1;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisNetRead(ctx: *mut redisContext, _buf: *mut c_char, _bufcap: size_t) -> ssize_t {
+    if ctx.is_null() {
+        return -1;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    -1
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisNetWrite(ctx: *mut redisContext) -> ssize_t {
+    if ctx.is_null() {
+        return -1;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    -1
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisSetPushCallback(_ctx: *mut redisContext, _fn: *mut c_void) -> *mut c_void {
+    ptr::null_mut()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisFreeKeepFd(ctx: *mut redisContext) -> c_int {
+    if ctx.is_null() {
+        return -1;
+    }
+    let fd = (*ctx).fd;
+    redisFree(ctx);
+    fd
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectWithOptions(_options: *const c_void) -> *mut redisContext {
+    new_context_with_error(ERR_UNSUPPORTED)
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectNonBlock(_ip: *const c_char, _port: c_int) -> *mut redisContext {
+    new_context_with_error(ERR_UNSUPPORTED)
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectBindNonBlock(
+    _ip: *const c_char,
+    _port: c_int,
+    _source_addr: *const c_char,
+) -> *mut redisContext {
+    new_context_with_error(ERR_UNSUPPORTED)
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectBindNonBlockWithReuse(
+    _ip: *const c_char,
+    _port: c_int,
+    _source_addr: *const c_char,
+) -> *mut redisContext {
+    new_context_with_error(ERR_UNSUPPORTED)
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectUnixWithTimeout(_path: *const c_char, _tv: timeval) -> *mut redisContext {
+    new_context_with_error(ERR_UNSUPPORTED)
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectUnixNonBlock(_path: *const c_char) -> *mut redisContext {
+    new_context_with_error(ERR_UNSUPPORTED)
+}
+
+#[no_mangle]
+pub extern "C" fn redisConnectFd(fd: c_int) -> *mut redisContext {
+    let ctx = new_context_with_error(ERR_UNSUPPORTED);
+    unsafe {
+        if !ctx.is_null() {
+            (*ctx).fd = fd;
+        }
+    }
+    ctx
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextConnectTcp(
+    ctx: *mut redisContext,
+    _addr: *const c_char,
+    _port: c_int,
+    _timeout: *const timeval,
+) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextConnectBindTcp(
+    ctx: *mut redisContext,
+    _addr: *const c_char,
+    _port: c_int,
+    _timeout: *const timeval,
+    _source_addr: *const c_char,
+) -> c_int {
+    redisContextConnectTcp(ctx, _addr, _port, _timeout)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisContextConnectUnix(
+    ctx: *mut redisContext,
+    _path: *const c_char,
+    _timeout: *const timeval,
+) -> c_int {
+    if ctx.is_null() {
+        return REDIS_ERR;
+    }
+    write_errstr(&mut *ctx, ERR_UNSUPPORTED);
     REDIS_ERR
 }
 
@@ -1391,9 +1705,614 @@ pub extern "C" fn redisAsyncConnectUnix(_path: *const c_char) -> *mut c_void {
 }
 
 #[no_mangle]
+pub extern "C" fn redisAsyncConnectWithOptions(_options: *const c_void) -> *mut c_void {
+    ptr::null_mut()
+}
+
+#[no_mangle]
+pub extern "C" fn redisAsyncConnectBind(
+    _ip: *const c_char,
+    _port: c_int,
+    _source_addr: *const c_char,
+) -> *mut c_void {
+    ptr::null_mut()
+}
+
+#[no_mangle]
+pub extern "C" fn redisAsyncConnectBindWithReuse(
+    _ip: *const c_char,
+    _port: c_int,
+    _source_addr: *const c_char,
+) -> *mut c_void {
+    ptr::null_mut()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncSetConnectCallback(_ac: *mut c_void, _fn: *mut c_void) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncSetConnectCallbackNC(_ac: *mut c_void, _fn: *mut c_void) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncSetDisconnectCallback(_ac: *mut c_void, _fn: *mut c_void) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncSetPushCallback(_ac: *mut c_void, _fn: *mut c_void) -> *mut c_void {
+    ptr::null_mut()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncSetTimeout(_ac: *mut c_void, _tv: timeval) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncDisconnect(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncFree(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncHandleRead(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncHandleWrite(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncHandleTimeout(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncRead(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncWrite(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisProcessCallbacks(_ac: *mut c_void) {}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncFormattedCommand(
+    _ac: *mut c_void,
+    _fn: *mut c_void,
+    _privdata: *mut c_void,
+    _cmd: *const c_char,
+    _len: size_t,
+) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncCommandArgv(
+    _ac: *mut c_void,
+    _fn: *mut c_void,
+    _privdata: *mut c_void,
+    _argc: c_int,
+    _argv: *const *const c_char,
+    _argvlen: *const size_t,
+) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisAsyncCommand(
+    _ac: *mut c_void,
+    _fn: *mut c_void,
+    _privdata: *mut c_void,
+    _format: *const c_char,
+) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn redisvAsyncCommand(
+    _ac: *mut c_void,
+    _fn: *mut c_void,
+    _privdata: *mut c_void,
+    _format: *const c_char,
+    _ap: *mut c_void,
+) -> c_int {
+    REDIS_ERR
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdslen(s: *const c_char) -> size_t {
+    sds_len(s)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsavail(s: *const c_char) -> size_t {
+    sds_cap(s).saturating_sub(sds_len(s))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsalloc(s: *const c_char) -> size_t {
+    sds_cap(s)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdssetlen(s: *mut c_char, newlen: size_t) {
+    if s.is_null() {
+        return;
+    }
+    let cap = sds_cap(s);
+    sds_set_len(s, newlen.min(cap));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdssetalloc(s: *mut c_char, newalloc: size_t) {
+    if s.is_null() {
+        return;
+    }
+    (*sds_header_ptr(s)).cap = newalloc.max(sds_len(s));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsinclen(s: *mut c_char, inc: size_t) {
+    if s.is_null() {
+        return;
+    }
+    let newlen = sds_len(s).saturating_add(inc).min(sds_cap(s));
+    sds_set_len(s, newlen);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsMakeRoomFor(s: *mut c_char, addlen: size_t) -> *mut c_char {
+    if s.is_null() {
+        return sds_alloc_with_cap(addlen);
+    }
+    let need = sds_len(s).saturating_add(addlen);
+    sds_ensure_cap(s, need)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsIncrLen(s: *mut c_char, incr: c_int) {
+    if s.is_null() {
+        return;
+    }
+    let cur = sds_len(s);
+    let cap = sds_cap(s);
+    let next = if incr >= 0 {
+        cur.saturating_add(incr as usize).min(cap)
+    } else {
+        cur.saturating_sub((-incr) as usize)
+    };
+    sds_set_len(s, next);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsRemoveFreeSpace(s: *mut c_char) -> *mut c_char {
+    if s.is_null() {
+        return ptr::null_mut();
+    }
+    let len = sds_len(s);
+    sds_ensure_cap(s, len)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsAllocSize(s: *mut c_char) -> size_t {
+    if s.is_null() {
+        return 0;
+    }
+    mem::size_of::<SdsHeader>() + sds_cap(s) + 1
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsAllocPtr(s: *mut c_char) -> *mut c_void {
+    if s.is_null() {
+        return ptr::null_mut();
+    }
+    sds_header_ptr(s) as *mut c_void
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsgrowzero(s: *mut c_char, len: size_t) -> *mut c_char {
+    if s.is_null() {
+        return ptr::null_mut();
+    }
+    let cur = sds_len(s);
+    let out = sds_ensure_cap(s, len);
+    if out.is_null() {
+        return ptr::null_mut();
+    }
+    if len > cur {
+        ptr::write_bytes(out.add(cur), 0, len - cur);
+    }
+    sds_set_len(out, len);
+    out
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscatlen(s: *mut c_char, t: *const c_void, len: size_t) -> *mut c_char {
+    if s.is_null() || (t.is_null() && len > 0) {
+        return ptr::null_mut();
+    }
+    let cur = sds_len(s);
+    let out = sds_ensure_cap(s, cur.saturating_add(len));
+    if out.is_null() {
+        return ptr::null_mut();
+    }
+    if len > 0 {
+        ptr::copy_nonoverlapping(t as *const c_char, out.add(cur), len);
+    }
+    sds_set_len(out, cur + len);
+    out
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscat(s: *mut c_char, t: *const c_char) -> *mut c_char {
+    if t.is_null() {
+        return s;
+    }
+    sdscatlen(s, t as *const c_void, libc::strlen(t))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscatsds(s: *mut c_char, t: *const c_char) -> *mut c_char {
+    if t.is_null() {
+        return s;
+    }
+    sdscatlen(s, t as *const c_void, sds_len(t))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscatvprintf(s: *mut c_char, fmt: *const c_char, _ap: *mut c_void) -> *mut c_char {
+    if fmt.is_null() {
+        return s;
+    }
+    sdscat(s, fmt)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscatprintf(s: *mut c_char, fmt: *const c_char) -> *mut c_char {
+    if fmt.is_null() {
+        return s;
+    }
+    sdscat(s, fmt)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscatfmt(s: *mut c_char, fmt: *const c_char) -> *mut c_char {
+    if fmt.is_null() {
+        return s;
+    }
+    sdscat(s, fmt)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdstrim(s: *mut c_char, cset: *const c_char) -> *mut c_char {
+    if s.is_null() {
+        return ptr::null_mut();
+    }
+    if cset.is_null() {
+        return s;
+    }
+    let cset_len = libc::strlen(cset);
+    let trim = slice::from_raw_parts(cset as *const u8, cset_len);
+    let bytes = slice::from_raw_parts(s as *const u8, sds_len(s));
+    let mut start = 0usize;
+    let mut end = bytes.len();
+    while start < end && trim.contains(&bytes[start]) {
+        start += 1;
+    }
+    while end > start && trim.contains(&bytes[end - 1]) {
+        end -= 1;
+    }
+    if start > 0 && end > start {
+        ptr::copy(s.add(start), s, end - start);
+    }
+    sds_set_len(s, end.saturating_sub(start));
+    s
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsrange(s: *mut c_char, start: isize, end: isize) -> c_int {
+    if s.is_null() {
+        return REDIS_ERR;
+    }
+    let len = sds_len(s) as isize;
+    if len == 0 {
+        return REDIS_OK;
+    }
+    let mut st = if start < 0 { len + start } else { start };
+    let mut en = if end < 0 { len + end } else { end };
+    if st < 0 {
+        st = 0;
+    }
+    if en < 0 {
+        en = 0;
+    }
+    if st >= len || st > en {
+        sds_set_len(s, 0);
+        return REDIS_OK;
+    }
+    if en >= len {
+        en = len - 1;
+    }
+    let newlen = (en - st + 1) as usize;
+    if st > 0 {
+        ptr::copy(s.add(st as usize), s, newlen);
+    }
+    sds_set_len(s, newlen);
+    REDIS_OK
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsupdatelen(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    sds_set_len(s, libc::strlen(s));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsclear(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    sds_set_len(s, 0);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscmp(s1: *const c_char, s2: *const c_char) -> c_int {
+    let l1 = sds_len(s1);
+    let l2 = sds_len(s2);
+    let min = l1.min(l2);
+    let b1 = slice::from_raw_parts(s1 as *const u8, min);
+    let b2 = slice::from_raw_parts(s2 as *const u8, min);
+    for (a, b) in b1.iter().zip(b2.iter()) {
+        if a != b {
+            return (*a as c_int) - (*b as c_int);
+        }
+    }
+    (l1 as c_int) - (l2 as c_int)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdstolower(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    for i in 0..sds_len(s) {
+        let ch = *s.add(i) as u8;
+        *s.add(i) = ch.to_ascii_lowercase() as c_char;
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdstoupper(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    for i in 0..sds_len(s) {
+        let ch = *s.add(i) as u8;
+        *s.add(i) = ch.to_ascii_uppercase() as c_char;
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsll2str(buf: *mut c_char, value: c_longlong) -> c_int {
+    if buf.is_null() {
+        return 0;
+    }
+    let txt = value.to_string();
+    ptr::copy_nonoverlapping(txt.as_ptr() as *const c_char, buf, txt.len());
+    *buf.add(txt.len()) = 0;
+    txt.len() as c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsull2str(buf: *mut c_char, value: u64) -> c_int {
+    if buf.is_null() {
+        return 0;
+    }
+    let txt = value.to_string();
+    ptr::copy_nonoverlapping(txt.as_ptr() as *const c_char, buf, txt.len());
+    *buf.add(txt.len()) = 0;
+    txt.len() as c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsfromlonglong(value: c_longlong) -> *mut c_char {
+    let txt = value.to_string();
+    sdsnewlen(txt.as_ptr() as *const c_void, txt.len())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdscatrepr(s: *mut c_char, p: *const c_char, len: size_t) -> *mut c_char {
+    if p.is_null() {
+        return s;
+    }
+    sdscatlen(s, p as *const c_void, len)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsmapchars(
+    s: *mut c_char,
+    from: *const c_char,
+    to: *const c_char,
+    setlen: size_t,
+) -> *mut c_char {
+    if s.is_null() || from.is_null() || to.is_null() {
+        return s;
+    }
+    let fb = slice::from_raw_parts(from as *const u8, setlen);
+    let tb = slice::from_raw_parts(to as *const u8, setlen);
+    for i in 0..sds_len(s) {
+        let ch = *s.add(i) as u8;
+        if let Some(pos) = fb.iter().position(|x| *x == ch) {
+            *s.add(i) = tb[pos] as c_char;
+        }
+    }
+    s
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdssplitlen(
+    s: *const c_char,
+    len: c_int,
+    sep: *const c_char,
+    seplen: c_int,
+    count: *mut c_int,
+) -> *mut *mut c_char {
+    if s.is_null() || sep.is_null() || len < 0 || seplen <= 0 {
+        return ptr::null_mut();
+    }
+    let src = slice::from_raw_parts(s as *const u8, len as usize);
+    let sepb = slice::from_raw_parts(sep as *const u8, seplen as usize);
+    let mut parts: Vec<(usize, usize)> = Vec::new();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    while i + sepb.len() <= src.len() {
+        if &src[i..i + sepb.len()] == sepb {
+            parts.push((start, i - start));
+            i += sepb.len();
+            start = i;
+        } else {
+            i += 1;
+        }
+    }
+    parts.push((start, src.len().saturating_sub(start)));
+    if !count.is_null() {
+        *count = parts.len() as c_int;
+    }
+    let out = alloc_calloc(parts.len(), mem::size_of::<*mut c_char>()) as *mut *mut c_char;
+    if out.is_null() {
+        return ptr::null_mut();
+    }
+    for (idx, (off, plen)) in parts.iter().enumerate() {
+        let tok = sdsnewlen(src.as_ptr().add(*off) as *const c_void, *plen);
+        if tok.is_null() {
+            sdsfreesplitres(out, idx as c_int);
+            return ptr::null_mut();
+        }
+        *out.add(idx) = tok;
+    }
+    out
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdssplitargs(line: *const c_char, argc: *mut c_int) -> *mut *mut c_char {
+    if line.is_null() {
+        return ptr::null_mut();
+    }
+    sdssplitlen(line, libc::strlen(line) as c_int, b" \0".as_ptr() as *const c_char, 1, argc)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsjoin(argv: *mut *mut c_char, argc: c_int, sep: *mut c_char) -> *mut c_char {
+    if argc <= 0 {
+        return sdsempty();
+    }
+    let mut out = sdsempty();
+    if out.is_null() {
+        return ptr::null_mut();
+    }
+    let sep_len = if sep.is_null() { 0 } else { libc::strlen(sep) };
+    for i in 0..(argc as usize) {
+        let part = *argv.add(i);
+        if !part.is_null() {
+            out = sdscat(out, part);
+        }
+        if i + 1 < argc as usize && sep_len > 0 {
+            out = sdscatlen(out, sep as *const c_void, sep_len);
+        }
+    }
+    out
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn sdsjoinsds(
+    argv: *mut *mut c_char,
+    argc: c_int,
+    sep: *const c_char,
+    seplen: size_t,
+) -> *mut c_char {
+    if argc <= 0 {
+        return sdsempty();
+    }
+    let mut out = sdsempty();
+    if out.is_null() {
+        return ptr::null_mut();
+    }
+    for i in 0..(argc as usize) {
+        let part = *argv.add(i);
+        if !part.is_null() {
+            out = sdscatsds(out, part);
+        }
+        if i + 1 < argc as usize && !sep.is_null() && seplen > 0 {
+            out = sdscatlen(out, sep as *const c_void, seplen);
+        }
+    }
+    out
+}
+
+#[no_mangle]
+pub extern "C" fn sdsTest(_argc: c_int, _argv: *mut *mut c_char) -> c_int {
+    0
+}
+
+#[no_mangle]
 pub extern "C" fn redisInitiateSSLWithContext(_ctx: *mut redisContext, _ssl: *mut c_void) -> c_int {
     REDIS_ERR
 }
 
 #[no_mangle]
 pub extern "C" fn redisInitOpenSSL() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn sds_cat_trim_and_range_work() {
+        unsafe {
+            let mut s = sdsnew(c"  hello".as_ptr());
+            assert!(!s.is_null());
+            s = sdscat(s, c" world  ".as_ptr());
+            assert_eq!(sdslen(s), 15);
+            s = sdstrim(s, c" ".as_ptr());
+            assert_eq!(CStr::from_ptr(s).to_str().unwrap(), "hello world");
+            assert_eq!(sdsrange(s, 6, -1), REDIS_OK);
+            assert_eq!(CStr::from_ptr(s).to_str().unwrap(), "world");
+            sdsfree(s);
+        }
+    }
+
+    #[test]
+    fn sds_split_and_join_work() {
+        unsafe {
+            let mut count = 0;
+            let tokens = sdssplitlen(c"a,b,c".as_ptr(), 5, c",".as_ptr(), 1, &mut count);
+            assert_eq!(count, 3);
+            assert!(!tokens.is_null());
+            let joined = sdsjoinsds(tokens, count, c":".as_ptr(), 1);
+            assert_eq!(CStr::from_ptr(joined).to_str().unwrap(), "a:b:c");
+            sdsfree(joined);
+            sdsfreesplitres(tokens, count);
+        }
+    }
+
+    #[test]
+    fn append_formatted_command_updates_output_buffer() {
+        unsafe {
+            let ctx = redisConnect(c"127.0.0.1".as_ptr(), 6379);
+            assert!(!ctx.is_null());
+            let cmd = b"*1\r\n$4\r\nPING\r\n";
+            assert_eq!(
+                redisAppendFormattedCommand(ctx, cmd.as_ptr() as *const c_char, cmd.len()),
+                REDIS_OK
+            );
+            let obuf = (*ctx).obuf as *const c_char;
+            assert!(!obuf.is_null());
+            assert_eq!(CStr::from_ptr(obuf).to_bytes(), cmd);
+            redisFree(ctx);
+        }
+    }
+}
