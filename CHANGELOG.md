@@ -48,6 +48,14 @@ All notable changes to this project will be documented in this file.
 
 - *(changelog)* Update CHANGELOG.md ([fa0cabf](https://github.com/elicore/redis-web/commit/fa0cabf86744c2a59d42f63cfe5264be94059f5e))
 
+- *(changelog)* Update CHANGELOG.md ([411a90b](https://github.com/elicore/redis-web/commit/411a90be7ae42f8d761a5b7c9e63eb5295117092))
+
+- *(redispy-compat)* Add usage handbook and integration diagrams ([5a3bfb5](https://github.com/elicore/redis-web/commit/5a3bfb5f198f82151e4bbd16f78234c3213a1ea2))
+
+- *(compatibility)* Publish hiredis client integration guide ([f81eaea](https://github.com/elicore/redis-web/commit/f81eaeaffa4fa0368050174320737c80895001b3))
+
+- *(hiredis-compat)* Cross-link crate README to client usage docs ([addc0ee](https://github.com/elicore/redis-web/commit/addc0ee98ff2b2abadbf37dda09a28bd1b4f7bbd))
+
 
 ### Features
 
