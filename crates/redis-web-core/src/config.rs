@@ -24,6 +24,8 @@ pub struct Config {
     pub http_host: String,
     #[serde(default = "default_http_port")]
     pub http_port: u16,
+    #[serde(default)]
+    pub transport_mode: TransportMode,
     pub http_threads: Option<usize>,
     #[serde(default, rename = "threads", skip_serializing, alias = "threads")]
     legacy_http_threads: Option<usize>,
@@ -49,6 +51,8 @@ pub struct Config {
     /// Optional hiredis-compat runtime settings used by the `/__compat/*` bridge.
     #[serde(default = "default_compat_hiredis")]
     pub compat_hiredis: Option<CompatHiRedisConfig>,
+    #[serde(default = "default_grpc")]
+    pub grpc: GrpcConfig,
     pub http_max_request_size: Option<usize>,
     pub user: Option<String>,
     pub group: Option<String>,
@@ -56,6 +60,41 @@ pub struct Config {
     pub verbosity: Option<usize>,
     pub logfile: Option<String>,
     pub log_fsync: Option<LogFsync>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportMode {
+    #[default]
+    Rest,
+    Grpc,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GrpcConfig {
+    #[serde(default = "default_grpc_host")]
+    pub host: String,
+    #[serde(default = "default_grpc_port")]
+    pub port: u16,
+    #[serde(default = "default_grpc_health")]
+    pub enable_health_service: bool,
+    #[serde(default)]
+    pub enable_reflection: bool,
+    pub max_decoding_message_size: Option<usize>,
+    pub max_encoding_message_size: Option<usize>,
+}
+
+impl Default for GrpcConfig {
+    fn default() -> Self {
+        Self {
+            host: default_grpc_host(),
+            port: default_grpc_port(),
+            enable_health_service: default_grpc_health(),
+            enable_reflection: false,
+            max_decoding_message_size: None,
+            max_encoding_message_size: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -168,9 +207,8 @@ impl Config {
     fn from_json_value(mut json: Value) -> Result<Self, ConfigError> {
         expand_env_vars_in_json(&mut json, JsonPath::root())?;
 
-        let expanded = serde_json::to_string(&json).map_err(|e| {
-            ConfigError::Message(format!("failed to serialize config: {e}"))
-        })?;
+        let expanded = serde_json::to_string(&json)
+            .map_err(|e| ConfigError::Message(format!("failed to serialize config: {e}")))?;
         let loader = ConfigLoader::builder()
             .add_source(File::from_str(&expanded, FileFormat::Json))
             .build()?;
@@ -237,6 +275,7 @@ impl Default for Config {
             redis_socket: None,
             http_host: default_http_host(),
             http_port: default_http_port(),
+            transport_mode: TransportMode::default(),
             http_threads: Some(DEFAULT_HTTP_THREADS),
             legacy_http_threads: None,
             database: DEFAULT_DATABASE,
@@ -250,6 +289,7 @@ impl Default for Config {
             redis_auth: None,
             hiredis: None,
             compat_hiredis: default_compat_hiredis(),
+            grpc: default_grpc(),
             http_max_request_size: Some(DEFAULT_HTTP_MAX_REQUEST_SIZE),
             user: None,
             group: None,
@@ -277,6 +317,18 @@ fn default_http_port() -> u16 {
     7379
 }
 
+fn default_grpc_host() -> String {
+    "0.0.0.0".to_string()
+}
+
+fn default_grpc_port() -> u16 {
+    7379
+}
+
+fn default_grpc_health() -> bool {
+    true
+}
+
 const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "$schema",
     "redis_host",
@@ -285,6 +337,8 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "redis_auth",
     "hiredis",
     "compat_hiredis",
+    "transport_mode",
+    "grpc",
     "http_host",
     "http_port",
     "http_threads",
@@ -306,6 +360,10 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
 
 fn default_compat_hiredis() -> Option<CompatHiRedisConfig> {
     Some(CompatHiRedisConfig::default())
+}
+
+fn default_grpc() -> GrpcConfig {
+    GrpcConfig::default()
 }
 
 fn decorate_default_map(mut map: Map<String, Value>, schema_ref: &str) -> Map<String, Value> {

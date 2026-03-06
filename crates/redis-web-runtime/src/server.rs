@@ -9,7 +9,7 @@ use axum::{
     Router,
 };
 use redis_web_core::acl;
-use redis_web_core::config::{Config, DEFAULT_HTTP_MAX_REQUEST_SIZE};
+use redis_web_core::config::{Config, TransportMode, DEFAULT_HTTP_MAX_REQUEST_SIZE};
 use redis_web_core::interfaces::{CommandExecutor, RequestParser};
 use redis_web_core::request::WebdisRequestParser;
 use std::net::{IpAddr, SocketAddr};
@@ -20,6 +20,11 @@ use tracing::{error, info};
 pub struct ServerDependencies {
     pub request_parser: Arc<dyn RequestParser>,
     pub command_executor: Arc<dyn CommandExecutor>,
+}
+
+pub struct RuntimeComponents {
+    pub app_state: Arc<AppState>,
+    pub compat_hiredis: Option<Arc<crate::compat::CompatSessionManager>>,
 }
 
 /// Builds a server state and router from config and injected dependencies.
@@ -33,6 +38,23 @@ pub fn build_router_with_dependencies(
     pubsub_manager: PubSubManager,
     compat_hiredis: Option<Arc<crate::compat::CompatSessionManager>>,
 ) -> Router {
+    let components = build_runtime_with_dependencies(
+        config,
+        dependencies,
+        redis_pools,
+        pubsub_manager,
+        compat_hiredis,
+    );
+    build_router_from_components(config, components)
+}
+
+pub fn build_runtime_with_dependencies(
+    config: &Config,
+    dependencies: ServerDependencies,
+    redis_pools: Arc<DatabasePoolRegistry>,
+    pubsub_manager: PubSubManager,
+    compat_hiredis: Option<Arc<crate::compat::CompatSessionManager>>,
+) -> RuntimeComponents {
     let app_state = Arc::new(AppState {
         redis_pools,
         default_database: config.database,
@@ -42,6 +64,16 @@ pub fn build_router_with_dependencies(
         pubsub: pubsub_manager,
         compat_hiredis: compat_hiredis.clone(),
     });
+
+    RuntimeComponents {
+        app_state,
+        compat_hiredis,
+    }
+}
+
+pub fn build_router_from_components(config: &Config, components: RuntimeComponents) -> Router {
+    let app_state = components.app_state;
+    let compat_hiredis = components.compat_hiredis;
 
     let mut app = Router::new()
         .route(
@@ -99,6 +131,11 @@ pub fn build_router_with_dependencies(
 
 /// Builds the default Webdis router using the built-in parser and Redis executor.
 pub fn build_router(config: &Config) -> Result<Router, ServerBuildError> {
+    let components = build_runtime(config)?;
+    Ok(build_router_from_components(config, components))
+}
+
+pub fn build_runtime(config: &Config) -> Result<RuntimeComponents, ServerBuildError> {
     info!("Initializing Redis command pool");
     let redis_pool = redis::create_pool(config).map_err(ServerBuildError::RedisPool)?;
     let redis_pools = DatabasePoolRegistry::new(config.clone(), redis_pool);
@@ -108,8 +145,8 @@ pub fn build_router(config: &Config) -> Result<Router, ServerBuildError> {
     let pubsub_client = redis::create_pubsub_client(config).map_err(ServerBuildError::PubSub)?;
     let pubsub_manager = pubsub::PubSubManager::new(pubsub_client);
 
-    let compat_hiredis = match config.compat_hiredis.as_ref() {
-        Some(cfg) if cfg.enabled => {
+    let compat_hiredis = match (config.transport_mode, config.compat_hiredis.as_ref()) {
+        (TransportMode::Rest, Some(cfg)) if cfg.enabled => {
             let manager = crate::compat::CompatSessionManager::new(config)
                 .map_err(ServerBuildError::Compat)?;
             Some(Arc::new(manager))
@@ -122,7 +159,7 @@ pub fn build_router(config: &Config) -> Result<Router, ServerBuildError> {
         command_executor: Arc::new(RedisCommandExecutor::new(redis_pools_shared.clone())),
     };
 
-    Ok(build_router_with_dependencies(
+    Ok(build_runtime_with_dependencies(
         config,
         dependencies,
         redis_pools_shared,

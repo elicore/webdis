@@ -57,6 +57,15 @@
       "maximum": 65535,
       "default": 7379
     },
+    "transport_mode": {
+      "type": "string",
+      "description": "Selects which public surface redis-web exposes at startup.",
+      "enum": [
+        "rest",
+        "grpc"
+      ],
+      "default": "rest"
+    },
     "http_threads": {
       "type": "integer",
       "description": "Number of Tokio worker threads dedicated to HTTP handling.",
@@ -157,6 +166,9 @@
     },
     "compat_hiredis": {
       "$ref": "#/$defs/compatHiredisConfig"
+    },
+    "grpc": {
+      "$ref": "#/$defs/grpcConfig"
     }
   },
   "$defs": {
@@ -280,6 +292,45 @@
           "minimum": 1,
           "default": 256,
           "description": "Maximum commands accepted in one pipelined compat request."
+        }
+      }
+    },
+    "grpcConfig": {
+      "type": "object",
+      "description": "Configuration for the gRPC transport when transport_mode is set to grpc.",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "0.0.0.0",
+          "description": "Interface redis-web binds to for gRPC traffic."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 7379,
+          "description": "Port redis-web listens on for gRPC traffic."
+        },
+        "enable_health_service": {
+          "type": "boolean",
+          "default": true,
+          "description": "Expose the standard gRPC health service."
+        },
+        "enable_reflection": {
+          "type": "boolean",
+          "default": false,
+          "description": "Expose gRPC server reflection for debugging and tooling."
+        },
+        "max_decoding_message_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum accepted gRPC request size in bytes. Falls back to http_max_request_size when omitted."
+        },
+        "max_encoding_message_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum emitted gRPC response size in bytes."
         }
       }
     }

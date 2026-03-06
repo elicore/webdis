@@ -1,6 +1,7 @@
 use crate::request::{ParsedRequest, RequestParseError};
 use redis::Value as RedisValue;
 use std::future::Future;
+use std::net::IpAddr;
 use std::pin::Pin;
 
 /// Input passed from an HTTP adapter to a request parser.
@@ -15,6 +16,19 @@ pub struct ParseRequestInput<'a> {
     pub etag_enabled: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutableCommand {
+    pub target_database: u8,
+    pub command_name: String,
+    pub args: Vec<Vec<u8>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthContext {
+    pub client_ip: IpAddr,
+    pub authorization: Option<String>,
+}
+
 pub type ExecutionFuture<'a> =
     Pin<Box<dyn Future<Output = Result<RedisValue, CommandExecutionError>> + Send + 'a>>;
 
@@ -25,7 +39,7 @@ pub trait RequestParser: Send + Sync {
 
 /// Executor interface that runs a normalized request against a backend.
 pub trait CommandExecutor: Send + Sync {
-    fn execute<'a>(&'a self, request: &'a ParsedRequest) -> ExecutionFuture<'a>;
+    fn execute<'a>(&'a self, request: &'a ExecutableCommand) -> ExecutionFuture<'a>;
 }
 
 #[derive(Debug)]

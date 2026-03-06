@@ -4,9 +4,9 @@ use nix::unistd::{Group, User};
 use redis_web_compat::{
     legacy_alias_notice, resolve_default_config, InvocationKind, LEGACY_CONFIG_NAME,
 };
-use redis_web_core::config::{Config, DEFAULT_VERBOSITY};
+use redis_web_core::config::{Config, TransportMode, DEFAULT_VERBOSITY};
 use redis_web_core::logging::FsyncWriter;
-use redis_web_runtime::server;
+use redis_web_runtime::{grpc, server};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io;
@@ -188,22 +188,65 @@ pub fn run(kind: InvocationKind) {
 }
 
 async fn async_main(config: Config) {
-    info!("Building HTTP router and Redis dependencies");
-    let app = match server::build_router(&config) {
-        Ok(app) => app,
+    let components = match server::build_runtime(&config) {
+        Ok(components) => components,
         Err(error) => {
-            error!("Server startup failed during router/dependency build: {error}");
+            error!("Server startup failed during runtime build: {error}");
             process::exit(1);
         }
     };
 
-    info!(
-        "Starting HTTP server on {}:{}",
-        config.http_host, config.http_port
-    );
-    if let Err(error) = server::serve(&config, app).await {
-        error!("Failed to serve HTTP traffic: {}", error);
-        process::exit(1);
+    match config.transport_mode {
+        TransportMode::Rest => {
+            let app = server::build_router_from_components(&config, components);
+
+            info!(
+                "Starting HTTP server on {}:{}",
+                config.http_host, config.http_port
+            );
+            if let Err(error) = server::serve(&config, app).await {
+                error!("Failed to serve HTTP traffic: {}", error);
+                process::exit(1);
+            }
+        }
+        TransportMode::Grpc => {
+            log_ignored_rest_settings(&config);
+            info!(
+                "Starting gRPC server on {}:{}",
+                config.grpc.host, config.grpc.port
+            );
+            if let Err(error) = grpc::serve(&config, components.app_state).await {
+                error!("Failed to serve gRPC traffic: {}", error);
+                process::exit(1);
+            }
+        }
+    }
+}
+
+fn log_ignored_rest_settings(config: &Config) {
+    let mut ignored = Vec::new();
+    if config.websockets {
+        ignored.push("websockets");
+    }
+    if config.default_root.is_some() {
+        ignored.push("default_root");
+    }
+    if config
+        .compat_hiredis
+        .as_ref()
+        .is_some_and(|cfg| cfg.enabled)
+    {
+        ignored.push("compat_hiredis");
+    }
+    if config.http_host != "0.0.0.0" || config.http_port != 7379 {
+        ignored.push("http_host/http_port");
+    }
+
+    if !ignored.is_empty() {
+        info!(
+            "Ignoring REST-only settings in gRPC mode: {}",
+            ignored.join(", ")
+        );
     }
 }
 

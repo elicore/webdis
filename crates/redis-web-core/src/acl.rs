@@ -1,4 +1,5 @@
 use crate::config::AclConfig;
+use crate::interfaces::AuthContext;
 use std::net::IpAddr;
 
 pub struct Acl {
@@ -83,5 +84,9 @@ impl Acl {
         }
 
         allowed
+    }
+
+    pub fn check_auth(&self, auth: &AuthContext, command: &str) -> bool {
+        self.check(auth.client_ip, command, auth.authorization.as_deref())
     }
 }
