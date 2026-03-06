@@ -8,7 +8,7 @@ use axum::{
     response::Response,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
-use redis::{cmd, Value as RedisValue};
+use redis_web_core::interfaces::{CommandExecutionError, ExecutableCommand};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -85,45 +85,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     continue;
                 }
 
-                let pool = match state
-                    .redis_pools
-                    .pool_for_database(state.default_database)
-                    .await
-                {
-                    Ok(pool) => pool,
-                    Err(_) => {
-                        let _ = tx
-                            .send(Message::Text(
-                                serde_json::json!({"error": "Service Unavailable"})
-                                    .to_string()
-                                    .into(),
-                            ))
-                            .await;
-                        continue;
-                    }
+                let command = ExecutableCommand {
+                    target_database: state.default_database,
+                    command_name: cmd_name.clone(),
+                    args: args.iter().map(|arg| arg.as_bytes().to_vec()).collect(),
                 };
 
-                let mut conn = match pool.get().await {
-                    Ok(conn) => conn,
-                    Err(_) => {
-                        let _ = tx
-                            .send(Message::Text(
-                                serde_json::json!({"error": "Service Unavailable"})
-                                    .to_string()
-                                    .into(),
-                            ))
-                            .await;
-                        continue;
-                    }
-                };
-
-                let mut redis_cmd = cmd(cmd_name);
-                for arg in args {
-                    redis_cmd.arg(arg);
-                }
-
-                let result: Result<RedisValue, _> = redis_cmd.query_async(&mut conn).await;
-                match result {
+                match state.command_executor.execute(&command).await {
                     Ok(val) => {
                         let json_val = redis_value_to_json(val);
                         let response = serde_json::json!({cmd_name: json_val});
@@ -192,49 +160,13 @@ async fn handle_socket_raw(socket: WebSocket, state: Arc<AppState>) {
                     }
 
                     // Get a connection from the default DB pool.
-                    let pool = match state
-                        .redis_pools
-                        .pool_for_database(state.default_database)
-                        .await
-                    {
-                        Ok(pool) => pool,
-                        Err(e) => {
-                            let err_resp = format!("-ERR {}\r\n", e);
-                            if sender
-                                .send(Message::Binary(err_resp.into_bytes().into()))
-                                .await
-                                .is_err()
-                            {
-                                return;
-                            }
-                            continue;
-                        }
+                    let command = ExecutableCommand {
+                        target_database: state.default_database,
+                        command_name: String::from_utf8_lossy(&args[0]).to_string(),
+                        args: args[1..].to_vec(),
                     };
 
-                    let mut conn = match pool.get().await {
-                        Ok(conn) => conn,
-                        Err(e) => {
-                            let err_resp = format!("-ERR {}\r\n", e);
-                            if sender
-                                .send(Message::Binary(err_resp.into_bytes().into()))
-                                .await
-                                .is_err()
-                            {
-                                return;
-                            }
-                            continue;
-                        }
-                    };
-
-                    // Build and execute the Redis command
-                    let cmd_name = String::from_utf8_lossy(&args[0]).to_string();
-                    let mut redis_cmd = cmd(&cmd_name);
-                    for arg in &args[1..] {
-                        redis_cmd.arg(arg);
-                    }
-
-                    let result: Result<RedisValue, _> = redis_cmd.query_async(&mut conn).await;
-                    match result {
+                    match state.command_executor.execute(&command).await {
                         Ok(val) => {
                             // Convert result to RESP and send as binary message
                             let resp = redis_web_core::resp::value_to_resp(&val);
@@ -244,7 +176,12 @@ async fn handle_socket_raw(socket: WebSocket, state: Arc<AppState>) {
                         }
                         Err(e) => {
                             // Forward Redis error as RESP error
-                            let err_resp = format!("-ERR {}\r\n", e);
+                            let err_resp = match e {
+                                CommandExecutionError::ServiceUnavailable(message)
+                                | CommandExecutionError::ExecutionFailed(message) => {
+                                    format!("-ERR {message}\r\n")
+                                }
+                            };
                             if sender
                                 .send(Message::Binary(err_resp.into_bytes().into()))
                                 .await

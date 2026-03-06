@@ -12,11 +12,11 @@ use std::io::Write;
 use std::sync::Mutex;
 
 use redis_web_core::config::{
-    Config, LogFsync, LogFsyncMode, DEFAULT_HTTP_MAX_REQUEST_SIZE, DEFAULT_HTTP_THREADS,
-    DEFAULT_POOL_SIZE_PER_THREAD, DEFAULT_VERBOSITY,
+    Config, LogFsync, LogFsyncMode, TransportMode, DEFAULT_HTTP_MAX_REQUEST_SIZE,
+    DEFAULT_HTTP_THREADS, DEFAULT_POOL_SIZE_PER_THREAD, DEFAULT_VERBOSITY,
 };
-use serde_json::json;
 use redis_web_runtime::redis;
+use serde_json::json;
 
 /// Tests in this module may temporarily set process-wide environment variables.
 ///
@@ -102,6 +102,7 @@ fn test_default_values() {
     // Verify boolean defaults are false
     assert_eq!(config.daemonize, false);
     assert_eq!(config.websockets, false);
+    assert_eq!(config.transport_mode, TransportMode::Rest);
 
     // Verify optional fields are None when not specified
     assert_eq!(config.http_max_request_size, None);
@@ -110,6 +111,10 @@ fn test_default_values() {
     let compat = config.compat_hiredis.as_ref().unwrap();
     assert!(compat.enabled);
     assert_eq!(compat.path_prefix, "/__compat");
+    assert_eq!(config.grpc.host, "0.0.0.0");
+    assert_eq!(config.grpc.port, 7379);
+    assert!(config.grpc.enable_health_service);
+    assert!(!config.grpc.enable_reflection);
 }
 
 /// Tests that Config can be created from a JSON object (hash/dict) via `Config::from_value`.
@@ -158,6 +163,17 @@ fn test_default_document_generation() {
     assert_eq!(
         obj.get("verbosity").and_then(|v| v.as_u64()),
         Some(DEFAULT_VERBOSITY as u64)
+    );
+    assert_eq!(
+        obj.get("transport_mode").and_then(|v| v.as_str()),
+        Some("rest")
+    );
+    assert_eq!(
+        obj.get("grpc")
+            .and_then(|v| v.as_object())
+            .and_then(|grpc| grpc.get("port"))
+            .and_then(|v| v.as_u64()),
+        Some(7379)
     );
     assert!(!obj.contains_key("redis_auth"));
     assert!(!obj.contains_key("logfile"));
@@ -390,6 +406,33 @@ fn test_compat_hiredis_config_parses() {
     assert_eq!(compat.session_ttl_sec, 120);
     assert_eq!(compat.max_sessions, 64);
     assert_eq!(compat.max_pipeline_commands, 32);
+}
+
+#[test]
+fn test_grpc_config_parses() {
+    let config_json = r#"{
+        "transport_mode": "grpc",
+        "grpc": {
+            "host": "127.0.0.1",
+            "port": 50051,
+            "enable_health_service": false,
+            "enable_reflection": true,
+            "max_decoding_message_size": 4096,
+            "max_encoding_message_size": 8192
+        }
+    }"#;
+
+    let mut file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
+    write!(file, "{}", config_json).unwrap();
+
+    let config = Config::new(file.path().to_str().unwrap()).unwrap();
+    assert_eq!(config.transport_mode, TransportMode::Grpc);
+    assert_eq!(config.grpc.host, "127.0.0.1");
+    assert_eq!(config.grpc.port, 50051);
+    assert!(!config.grpc.enable_health_service);
+    assert!(config.grpc.enable_reflection);
+    assert_eq!(config.grpc.max_decoding_message_size, Some(4096));
+    assert_eq!(config.grpc.max_encoding_message_size, Some(8192));
 }
 
 /// The legacy `log_fsync` option parses string modes (`auto`, `all`).

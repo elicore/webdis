@@ -27,7 +27,7 @@ async fn test_interface_mapping_captures_db_command_and_args() {
     let last = seen.last().unwrap();
     assert_eq!(last.target_database, 7);
     assert_eq!(last.command_name, "SET");
-    assert_eq!(last.args, vec!["mapped", "key"]);
+    assert_eq!(last.args, vec![b"mapped".to_vec(), b"key".to_vec()]);
 }
 
 #[tokio::test]

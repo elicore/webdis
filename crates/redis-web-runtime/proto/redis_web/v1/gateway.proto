@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package redis_web.v1;
+
+service RedisGateway {
+  rpc Execute(CommandRequest) returns (CommandReply);
+  rpc ExecuteStream(stream StreamCommandRequest) returns (stream StreamCommandReply);
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeEvent);
+}
+
+message CommandRequest {
+  string command = 1;
+  optional uint32 database = 2;
+  repeated bytes args = 3;
+}
+
+message CommandReply {
+  RedisValue value = 1;
+}
+
+message StreamCommandRequest {
+  string correlation_id = 1;
+  CommandRequest command = 2;
+}
+
+message StreamCommandReply {
+  string correlation_id = 1;
+  oneof result {
+    RedisValue value = 2;
+    CommandError error = 3;
+  }
+}
+
+message SubscribeRequest {
+  string channel = 1;
+}
+
+message SubscribeEvent {
+  bytes channel = 1;
+  bytes payload = 2;
+}
+
+message CommandError {
+  ErrorKind kind = 1;
+  string message = 2;
+}
+
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;
+  SERVICE_UNAVAILABLE = 1;
+  EXECUTION_FAILED = 2;
+}
+
+message RedisValue {
+  oneof kind {
+    Nil nil = 1;
+    int64 integer = 2;
+    bytes bulk_bytes = 3;
+    string simple_string = 4;
+    RedisArray array = 5;
+  }
+}
+
+message Nil {}
+
+message RedisArray {
+  repeated RedisValue values = 1;
+}

@@ -3,6 +3,15 @@ title: HTTP and WebSocket API
 description: Command encoding, response formats, and WebSocket endpoints.
 ---
 
+## Surface selection
+
+`redis-web` exposes one public surface at a time:
+
+- `transport_mode = "rest"`: HTTP, WebSocket, and optional compat routes
+- `transport_mode = "grpc"`: gRPC only
+
+The sections below describe both transport families.
+
 ## HTTP command patterns
 
 - `GET /COMMAND/arg0/.../argN[.ext]`
@@ -53,6 +62,34 @@ change the response body format.
 - `403` ACL denial
 - `500` execution/runtime error
 - `503` Redis unavailable
+
+## gRPC API
+
+When `transport_mode` is `grpc`, redis-web exposes the `redis_web.v1.RedisGateway`
+service with three RPCs:
+
+- `Execute(CommandRequest) returns (CommandReply)`
+- `ExecuteStream(stream StreamCommandRequest) returns (stream StreamCommandReply)`
+- `Subscribe(SubscribeRequest) returns (stream SubscribeEvent)`
+
+`CommandRequest` carries a command name plus binary-safe arguments:
+
+```json
+{
+  "command": "SET",
+  "args": ["aGVsbG8=", "d29ybGQ="]
+}
+```
+
+Behavior notes:
+
+- Unary RPC failures map to gRPC status codes (`INVALID_ARGUMENT`, `PERMISSION_DENIED`, `UNAVAILABLE`, `INTERNAL`).
+- `ExecuteStream` keeps command-level failures in the streamed payload so the stream can continue.
+- `Subscribe` is a single-channel server stream intended to cover the current public Pub/Sub surface.
+- gRPC replies use a typed `RedisValue` tree, not JSON and not raw RESP frames.
+
+For a local development workflow with `grpcurl`, reflection, and a Rust client
+example, see [gRPC Development](/guides/grpc-development/).
 
 ## WebSocket endpoints
 

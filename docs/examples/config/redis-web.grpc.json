@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/elicore/redis-web/main/redis-web.schema.json",
+  "redis_host": "127.0.0.1",
+  "redis_port": 6379,
+  "transport_mode": "grpc",
+  "grpc": {
+    "host": "127.0.0.1",
+    "port": 7379,
+    "enable_health_service": true,
+    "enable_reflection": true,
+    "max_decoding_message_size": 16777216,
+    "max_encoding_message_size": 16777216
+  },
+  "verbosity": 4,
+  "logfile": "redis-web.log"
+}

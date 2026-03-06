@@ -20,6 +20,7 @@ export default defineConfig({
           items: [
             { label: 'Deployment (Docker and Security)', link: '/guides/deployment/' },
             { label: 'Embedding', link: '/guides/embedding/' },
+            { label: 'gRPC Development', link: '/guides/grpc-development/' },
             { label: 'Hiredis Functional Tests', link: '/guides/hiredis-functional-tests/' },
             { label: 'Hiredis Performance Harness', link: '/guides/hiredis-performance-tests/' }
           ]

@@ -1,7 +1,8 @@
 use crate::redis::DatabasePoolRegistry;
 use redis::cmd;
-use redis_web_core::interfaces::{CommandExecutionError, CommandExecutor, ExecutionFuture};
-use redis_web_core::request::ParsedRequest;
+use redis_web_core::interfaces::{
+    CommandExecutionError, CommandExecutor, ExecutableCommand, ExecutionFuture,
+};
 use std::sync::Arc;
 
 /// Default Redis-backed executor for parsed Webdis requests.
@@ -16,7 +17,7 @@ impl RedisCommandExecutor {
 }
 
 impl CommandExecutor for RedisCommandExecutor {
-    fn execute<'a>(&'a self, request: &'a ParsedRequest) -> ExecutionFuture<'a> {
+    fn execute<'a>(&'a self, request: &'a ExecutableCommand) -> ExecutionFuture<'a> {
         Box::pin(async move {
             let pool = self
                 .redis_pools
@@ -32,9 +33,6 @@ impl CommandExecutor for RedisCommandExecutor {
             let mut redis_command = cmd(request.command_name.as_str());
             for arg in &request.args {
                 redis_command.arg(arg);
-            }
-            if let Some(body_arg) = request.body_arg.as_deref() {
-                redis_command.arg(body_arg);
             }
 
             redis_command

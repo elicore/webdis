@@ -3,6 +3,7 @@
 use crate::support::stub_executor::ScriptedStubExecutor;
 use redis_web_core::config::Config;
 use redis_web_core::request::WebdisRequestParser;
+use redis_web_runtime::grpc;
 use redis_web_runtime::server::{self, ServerDependencies};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -10,6 +11,11 @@ use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
 pub struct FunctionalServer {
+    pub addr: SocketAddr,
+    _task: JoinHandle<()>,
+}
+
+pub struct GrpcFunctionalServer {
     pub addr: SocketAddr,
     _task: JoinHandle<()>,
 }
@@ -49,6 +55,44 @@ impl FunctionalServer {
             )
             .await
             .expect("functional server crashed");
+        });
+
+        Self { addr, _task: task }
+    }
+}
+
+impl GrpcFunctionalServer {
+    pub async fn spawn(config: Config, executor: Arc<ScriptedStubExecutor>) -> Self {
+        let pool =
+            redis_web_runtime::redis::create_pool(&config).expect("pool config should be valid");
+        let pools = Arc::new(redis_web_runtime::redis::DatabasePoolRegistry::new(
+            config.clone(),
+            pool,
+        ));
+        let pubsub_client = redis_web_runtime::redis::create_pubsub_client(&config)
+            .expect("pubsub client config should be valid");
+        let pubsub = redis_web_runtime::pubsub::PubSubManager::new(pubsub_client);
+
+        let components = server::build_runtime_with_dependencies(
+            &config,
+            ServerDependencies {
+                request_parser: Arc::new(WebdisRequestParser),
+                command_executor: executor,
+            },
+            pools,
+            pubsub,
+            None,
+        );
+
+        let listener = TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("bind failed");
+        let addr = listener.local_addr().expect("addr missing");
+
+        let task = tokio::spawn(async move {
+            grpc::serve_with_listener(&config, components.app_state, listener)
+                .await
+                .expect("functional gRPC server crashed");
         });
 
         Self { addr, _task: task }

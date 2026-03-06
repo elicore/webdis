@@ -10,7 +10,7 @@ use redis::Value as RedisValue;
 use redis_web_core::acl::Acl;
 use redis_web_core::format::{json_value_response, select_jsonp_callback, OutputFormat};
 use redis_web_core::interfaces::{
-    CommandExecutionError, CommandExecutor, ParseRequestInput, RequestParser,
+    AuthContext, CommandExecutionError, CommandExecutor, ParseRequestInput, RequestParser,
 };
 use redis_web_core::request::RequestParseError;
 use redis_web_core::resp;
@@ -194,11 +194,15 @@ async fn process_request(
     };
 
     // Check ACL
-    if !state.acl.check(
-        addr.ip(),
-        parsed.command_name.as_str(),
-        auth_header.as_deref(),
-    ) {
+    let auth = AuthContext {
+        client_ip: addr.ip(),
+        authorization: auth_header,
+    };
+
+    if !state
+        .acl
+        .check_auth(&auth, parsed.command.command_name.as_str())
+    {
         return json_value_response(
             StatusCode::FORBIDDEN,
             json!({"error": "Forbidden"}),
@@ -206,7 +210,7 @@ async fn process_request(
         );
     }
 
-    let execution = state.command_executor.execute(&parsed).await;
+    let execution = state.command_executor.execute(&parsed.command).await;
 
     let mut response = match execution {
         Ok(val) => {
@@ -236,9 +240,9 @@ async fn process_request(
                 // Compute ETag for GET requests (body is None).
                 let etag = if parsed.etag_enabled {
                     let mut hasher = Sha1::new();
-                    hasher.update(parsed.command_name.as_bytes());
-                    for arg in &parsed.args {
-                        hasher.update(arg.as_bytes());
+                    hasher.update(parsed.command.command_name.as_bytes());
+                    for arg in &parsed.command.args {
+                        hasher.update(arg);
                     }
                     hasher.update(&bytes);
                     let tag = format!("\"{:x}\"", hasher.finalize());
@@ -274,12 +278,14 @@ async fn process_request(
                 let mut json_val = redis_value_to_json(val);
 
                 // Special handling for INFO command to return structured JSON
-                if (parsed.command_name.eq_ignore_ascii_case("INFO")
-                    || (parsed.command_name.eq_ignore_ascii_case("CLUSTER")
+                if (parsed.command.command_name.eq_ignore_ascii_case("INFO")
+                    || (parsed.command.command_name.eq_ignore_ascii_case("CLUSTER")
                         && parsed
+                            .command
                             .args
                             .get(0)
-                            .map_or(false, |a| a.eq_ignore_ascii_case("INFO"))))
+                            .map(|a| bytes_eq_ignore_ascii_case(a, b"INFO"))
+                            .unwrap_or(false)))
                     && json_val.is_string()
                 {
                     if let Some(s) = json_val.as_str() {
@@ -290,9 +296,9 @@ async fn process_request(
                 // Compute ETag for GET requests (body is None)
                 let etag = if parsed.etag_enabled {
                     let mut hasher = Sha1::new();
-                    hasher.update(parsed.command_name.as_bytes());
-                    for arg in &parsed.args {
-                        hasher.update(arg.as_bytes());
+                    hasher.update(parsed.command.command_name.as_bytes());
+                    for arg in &parsed.command.args {
+                        hasher.update(arg);
                     }
                     if let Some(cb) = parsed.jsonp_callback.as_deref() {
                         hasher.update(cb.as_bytes());
@@ -321,7 +327,7 @@ async fn process_request(
 
                 // Note: ETag must vary by JSONP callback, since the response body changes.
                 let mut resp = parsed.output_format.format_response(
-                    parsed.command_name.as_str(),
+                    parsed.command.command_name.as_str(),
                     json_val,
                     parsed.jsonp_callback.as_deref(),
                 );
@@ -335,7 +341,7 @@ async fn process_request(
         Err(error) => {
             error!(
                 "Redis command execution failed: command={} db={} client={} error={}",
-                parsed.command_name, parsed.target_database, addr, error
+                parsed.command.command_name, parsed.command.target_database, addr, error
             );
             if matches!(parsed.output_format, OutputFormat::Raw) {
                 // Raw Error: -ERR message
@@ -398,6 +404,10 @@ async fn process_request(
     }
 
     response
+}
+
+fn bytes_eq_ignore_ascii_case(lhs: &[u8], rhs: &[u8]) -> bool {
+    lhs.eq_ignore_ascii_case(rhs)
 }
 
 fn request_parse_error_message(error: &RequestParseError) -> String {

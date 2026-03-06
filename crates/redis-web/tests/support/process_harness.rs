@@ -204,6 +204,12 @@ pub struct TestServer {
     pub port: u16,
 }
 
+pub struct GrpcTestServer {
+    process: Child,
+    _config_file: NamedTempFile,
+    pub port: u16,
+}
+
 impl TestServer {
     pub async fn new() -> Self {
         Self::new_with_limit(None).await
@@ -305,6 +311,107 @@ impl TestServer {
 }
 
 impl Drop for TestServer {
+    fn drop(&mut self) {
+        let _ = self.process.kill();
+    }
+}
+
+impl GrpcTestServer {
+    pub async fn new() -> Self {
+        let config_file = tempfile::Builder::new()
+            .suffix(".json")
+            .tempfile()
+            .expect("Failed to create temp config file");
+
+        let config_content = serde_json::json!({
+            "redis_host": "127.0.0.1",
+            "redis_port": 6379,
+            "transport_mode": "grpc",
+            "grpc": {
+                "host": "127.0.0.1",
+                "port": 0,
+                "enable_health_service": true,
+                "enable_reflection": false
+            },
+            "database": 0,
+            "daemonize": false,
+            "verbosity": 5,
+            "logfile": "redis-web.log"
+        });
+
+        Self::spawn_with_config_and_env(config_file, config_content, &[]).await
+    }
+
+    pub async fn spawn_with_config_and_env(
+        mut config_file: NamedTempFile,
+        mut config_content: serde_json::Value,
+        env: &[(&str, &str)],
+    ) -> Self {
+        ensure_redis_web_debug_binaries();
+
+        let config_path = config_file.path().to_str().unwrap().to_string();
+
+        for attempt in 0..20 {
+            let port = pick_unused_local_port();
+            if let Some(obj) = config_content.as_object_mut() {
+                let grpc = obj
+                    .entry("grpc".to_string())
+                    .or_insert_with(|| serde_json::json!({}));
+                grpc.as_object_mut()
+                    .expect("grpc config should be object")
+                    .insert("port".to_string(), serde_json::Value::from(port));
+            }
+
+            let file = config_file.as_file_mut();
+            file.set_len(0).expect("Failed to truncate config file");
+            file.seek(SeekFrom::Start(0))
+                .expect("Failed to seek config file");
+            write!(config_file, "{}", config_content).expect("Failed to write config");
+
+            let mut cmd = Command::new(redis_web_binary_path());
+            cmd.arg(&config_path);
+            for (k, v) in env {
+                cmd.env(k, v);
+            }
+            let mut process = cmd.spawn().expect("Failed to start redis-web");
+
+            let mut ready = false;
+            for _ in 0..40 {
+                if let Ok(Ok(_)) = tokio::time::timeout(
+                    Duration::from_millis(100),
+                    TcpStream::connect(("127.0.0.1", port)),
+                )
+                .await
+                {
+                    ready = true;
+                    break;
+                }
+
+                if let Ok(Some(_)) = process.try_wait() {
+                    break;
+                }
+                sleep(Duration::from_millis(50)).await;
+            }
+
+            if ready {
+                return Self {
+                    process,
+                    _config_file: config_file,
+                    port,
+                };
+            }
+
+            let _ = process.kill();
+            if attempt == 19 {
+                panic!("failed to start redis-web gRPC server after retries");
+            }
+        }
+
+        unreachable!("retry loop returns or panics")
+    }
+}
+
+impl Drop for GrpcTestServer {
     fn drop(&mut self) {
         let _ = self.process.kill();
     }

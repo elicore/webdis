@@ -1,12 +1,9 @@
 use crate::format::{content_type_for_extension, select_jsonp_callback, OutputFormat};
-use crate::interfaces::{ParseRequestInput, RequestParser};
+use crate::interfaces::{ExecutableCommand, ParseRequestInput, RequestParser};
 
 #[derive(Debug, Clone)]
 pub struct ParsedRequest {
-    pub target_database: u8,
-    pub command_name: String,
-    pub args: Vec<String>,
-    pub body_arg: Option<Vec<u8>>,
+    pub command: ExecutableCommand,
     pub output_format: OutputFormat,
     pub jsonp_callback: Option<String>,
     pub content_type_override: Option<String>,
@@ -84,10 +81,13 @@ fn parse_http_request(input: ParseRequestInput<'_>) -> Result<ParsedRequest, Req
     }
 
     let command_name = percent_decode_segment_lossy(&raw_cmd_name);
-    let args: Vec<String> = raw_args
+    let mut args: Vec<Vec<u8>> = raw_args
         .into_iter()
-        .map(|segment| percent_decode_segment_lossy(&segment))
+        .map(|segment| percent_decode_segment_lossy(&segment).into_bytes())
         .collect();
+    if let Some(body) = input.body.filter(|body| !body.is_empty()) {
+        args.push(body.to_vec());
+    }
 
     let mut output_format = OutputFormat::Json;
     if let Some(ext) = extension.as_deref() {
@@ -109,16 +109,13 @@ fn parse_http_request(input: ParseRequestInput<'_>) -> Result<ParsedRequest, Req
     let extension_content_type = extension
         .as_deref()
         .and_then(|ext| content_type_for_extension(ext));
-    let body_arg = input
-        .body
-        .filter(|body| !body.is_empty())
-        .map(|b| b.to_vec());
 
     Ok(ParsedRequest {
-        target_database,
-        command_name,
-        args,
-        body_arg,
+        command: ExecutableCommand {
+            target_database,
+            command_name,
+            args,
+        },
         output_format,
         jsonp_callback,
         content_type_override,
@@ -169,9 +166,9 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(parsed.target_database, 7);
-        assert_eq!(parsed.command_name, "GET");
-        assert_eq!(parsed.args, vec!["key"]);
+        assert_eq!(parsed.command.target_database, 7);
+        assert_eq!(parsed.command.command_name, "GET");
+        assert_eq!(parsed.command.args, vec![b"key".to_vec()]);
         assert_eq!(parsed.output_format, OutputFormat::Raw);
         assert!(parsed.extension_content_type.is_some());
     }
@@ -188,8 +185,8 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(parsed.command_name, "GET");
-        assert_eq!(parsed.args, vec!["a/b.raw"]);
+        assert_eq!(parsed.command.command_name, "GET");
+        assert_eq!(parsed.command.args, vec![b"a/b.raw".to_vec()]);
         assert_eq!(parsed.output_format, OutputFormat::Json);
     }
 
@@ -242,5 +239,23 @@ mod tests {
 
         assert_eq!(parsed.output_format, OutputFormat::Raw);
         assert!(parsed.jsonp_callback.is_none());
+    }
+
+    #[test]
+    fn parser_appends_non_empty_body_as_last_argument() {
+        let params = HashMap::new();
+        let parsed = parse_http_request(ParseRequestInput {
+            command_path: "SET/key",
+            params: &params,
+            default_database: 0,
+            body: Some(b"value"),
+            etag_enabled: false,
+        })
+        .expect("body-backed request should parse");
+
+        assert_eq!(
+            parsed.command.args,
+            vec![b"key".to_vec(), b"value".to_vec()]
+        );
     }
 }

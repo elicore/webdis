@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-use redis_web_core::interfaces::{CommandExecutionError, CommandExecutor, ExecutionFuture};
-use redis_web_core::request::ParsedRequest;
+use redis_web_core::interfaces::{
+    CommandExecutionError, CommandExecutor, ExecutableCommand, ExecutionFuture,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -9,7 +10,7 @@ use tokio::sync::RwLock;
 #[derive(Default)]
 pub struct ScriptedStubExecutor {
     values: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-    requests: Arc<RwLock<Vec<ParsedRequest>>>,
+    requests: Arc<RwLock<Vec<ExecutableCommand>>>,
 }
 
 impl ScriptedStubExecutor {
@@ -17,13 +18,13 @@ impl ScriptedStubExecutor {
         Self::default()
     }
 
-    pub async fn seen_requests(&self) -> Vec<ParsedRequest> {
+    pub async fn seen_requests(&self) -> Vec<ExecutableCommand> {
         self.requests.read().await.clone()
     }
 }
 
 impl CommandExecutor for ScriptedStubExecutor {
-    fn execute<'a>(&'a self, request: &'a ParsedRequest) -> ExecutionFuture<'a> {
+    fn execute<'a>(&'a self, request: &'a ExecutableCommand) -> ExecutionFuture<'a> {
         Box::pin(async move {
             self.requests.write().await.push(request.clone());
 
@@ -36,18 +37,21 @@ impl CommandExecutor for ScriptedStubExecutor {
                     "stub execution failure".to_string(),
                 )),
                 "SET" => {
-                    let key = request.args.first().cloned().unwrap_or_default();
-                    let value = request
+                    let key = request
                         .args
-                        .get(1)
-                        .map(|v| v.as_bytes().to_vec())
-                        .or_else(|| request.body_arg.clone())
+                        .first()
+                        .map(|value| String::from_utf8_lossy(value).into_owned())
                         .unwrap_or_default();
+                    let value = request.args.get(1).cloned().unwrap_or_default();
                     self.values.write().await.insert(key, value);
                     Ok(redis::Value::SimpleString("OK".to_string()))
                 }
                 "GET" => {
-                    let key = request.args.first().cloned().unwrap_or_default();
+                    let key = request
+                        .args
+                        .first()
+                        .map(|value| String::from_utf8_lossy(value).into_owned())
+                        .unwrap_or_default();
                     let value = self
                         .values
                         .read()
@@ -58,7 +62,11 @@ impl CommandExecutor for ScriptedStubExecutor {
                     Ok(redis::Value::BulkString(value))
                 }
                 "STRLEN" => {
-                    let key = request.args.first().cloned().unwrap_or_default();
+                    let key = request
+                        .args
+                        .first()
+                        .map(|value| String::from_utf8_lossy(value).into_owned())
+                        .unwrap_or_default();
                     let value = self
                         .values
                         .read()
