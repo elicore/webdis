@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 
 - *(hiredis-compat)* Make compat crate pass -D warnings sanity builds ([9368aaa](https://github.com/elicore/redis-web/commit/9368aaa03ff4c0ae7da30ae07c8c1384eaee4988))
 
+- *(compat)* Remove submodule hard requirement for hiredis build ([af0e34f](https://github.com/elicore/redis-web/commit/af0e34f39cae7d7df7fce9e22003878a5327c5db))
+
 
 ### Documentation
 
@@ -55,6 +57,16 @@ All notable changes to this project will be documented in this file.
 - *(compatibility)* Publish hiredis client integration guide ([f81eaea](https://github.com/elicore/redis-web/commit/f81eaeaffa4fa0368050174320737c80895001b3))
 
 - *(hiredis-compat)* Cross-link crate README to client usage docs ([addc0ee](https://github.com/elicore/redis-web/commit/addc0ee98ff2b2abadbf37dda09a28bd1b4f7bbd))
+
+- *(changelog)* Update CHANGELOG.md ([55f7555](https://github.com/elicore/redis-web/commit/55f75551a0cef342cc26aa8650c6726a029d0b98))
+
+- *(compat)* Document audit tiers and setup verification behavior ([0cef8a5](https://github.com/elicore/redis-web/commit/0cef8a58f9259094e377c4b14f0fa6d78594b931))
+
+- *(compat)* Document full ABI parity and runtime non-parity ([0b0f259](https://github.com/elicore/redis-web/commit/0b0f259469552bca44d9fe4a1cee298a499c986e))
+
+- *(compat)* Publish runtime parity status and limits ([6f31ed5](https://github.com/elicore/redis-web/commit/6f31ed5cf243b037224fce93943ef655b90f8617))
+
+- *(compat)* Document hiredis ssl parity and validation ([45691c4](https://github.com/elicore/redis-web/commit/45691c4d6a725751153247de1566b243005ae879))
 
 
 ### Features
@@ -102,6 +114,12 @@ All notable changes to this project will be documented in this file.
 - *(hiredis-compat)* Implement parser/sds/allocator ABI for hiredis-py ([1586ed0](https://github.com/elicore/redis-web/commit/1586ed0ea7a97a5c515d0e384a8368d01816b4ee))
 
 - *(redispy-compat-harness)* Add pinned subproject, patch pipeline, and test runner ([4b4c408](https://github.com/elicore/redis-web/commit/4b4c408ee700273f2cf4cf5eb8e7794f86d2f8e9))
+
+- *(compat)* Close upstream hiredis symbol and header parity gaps ([a88fd90](https://github.com/elicore/redis-web/commit/a88fd9058a9bbc1a6286e1262c0c8cf60cf83650))
+
+- *(compat)* Provide upstream hiredis runtime parity artifacts ([41fae8e](https://github.com/elicore/redis-web/commit/41fae8e658fb2c0da2257cfb777faf201525c390))
+
+- *(compat)* Add upstream-style hiredis ssl artifact parity ([032b5ce](https://github.com/elicore/redis-web/commit/032b5ce424540b6207772d051da1f565007471e3))
 
 
 ### Miscellaneous Tasks
@@ -165,6 +183,12 @@ All notable changes to this project will be documented in this file.
 - Avoid codeql sensitive session_id flow in compat integration tests ([1b310f8](https://github.com/elicore/redis-web/commit/1b310f8bd506b6bdfb02b96fa038673024220cac))
 
 - Increase compat session retry window for CI redis startup ([d430ea8](https://github.com/elicore/redis-web/commit/d430ea8d179ab015f1bed9b0ed0b52e53f459bdf))
+
+- *(compat)* Harden hiredis parity and setup-env regression checks ([11770c8](https://github.com/elicore/redis-web/commit/11770c8e30b86a3f11351fdc1beda87cc778cf06))
+
+- *(compat)* Add runtime parity fixtures and matrix gates ([12afa66](https://github.com/elicore/redis-web/commit/12afa66d9f65de233982d10442a1741239e0009d))
+
+- *(compat)* Add ssl parity audit and runtime fixture gates ([38d2e3b](https://github.com/elicore/redis-web/commit/38d2e3bb03b8f1fc498a4ccceb3ca599d747f86f))
 
 
 ### Build
