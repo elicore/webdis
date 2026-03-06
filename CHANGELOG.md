@@ -68,6 +68,10 @@ All notable changes to this project will be documented in this file.
 
 - *(compat)* Document hiredis ssl parity and validation ([45691c4](https://github.com/elicore/redis-web/commit/45691c4d6a725751153247de1566b243005ae879))
 
+- *(changelog)* Update CHANGELOG.md ([3fc1e6e](https://github.com/elicore/redis-web/commit/3fc1e6e641157118c4125dceaa011896bbfd93d4))
+
+- *(README)* Enhance documentation with detailed features, usage examples, and workspace structure ([53bb096](https://github.com/elicore/redis-web/commit/53bb0963cbe6ef2f2a3423a3cf3eed8a6ae40492))
+
 
 ### Features
 
