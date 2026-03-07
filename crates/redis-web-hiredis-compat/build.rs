@@ -61,7 +61,8 @@ fn resolve_hiredis_source_dir(manifest_dir: &PathBuf) -> PathBuf {
 
     candidates.push((
         "submodule",
-        manifest_dir.join("../../subprojects/redispy-hiredis-compat/vendor/hiredis-py/vendor/hiredis"),
+        manifest_dir
+            .join("../../subprojects/redispy-hiredis-compat/vendor/hiredis-py/vendor/hiredis"),
     ));
     candidates.push(("vendored", manifest_dir.join("vendor/hiredis")));
 

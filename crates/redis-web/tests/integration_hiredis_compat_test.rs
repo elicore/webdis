@@ -58,10 +58,7 @@ async fn test_compat_session_command_roundtrip() {
     let client = Client::new();
 
     let body = create_compat_session(&client, server.port).await;
-    let compat_id = body["id"]
-        .as_str()
-        .expect("id missing")
-        .to_string();
+    let compat_id = body["id"].as_str().expect("id missing").to_string();
 
     let set_resp = client
         .post(format!(
@@ -106,10 +103,7 @@ async fn test_compat_stream_pubsub_message() {
     let client = Client::new();
 
     let body = create_compat_session(&client, server.port).await;
-    let compat_id = body["id"]
-        .as_str()
-        .expect("id missing")
-        .to_string();
+    let compat_id = body["id"].as_str().expect("id missing").to_string();
 
     let channel = format!("compat_stream_{}", server.port);
     let subscribe_resp = client
