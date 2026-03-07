@@ -30,6 +30,7 @@ Core commands:
 cargo test -p redis-web --tests --no-run
 make test
 make test_integration
+make bench_config_compare SPEC=docs/examples/config/redis-web.bench.yaml
 ```
 
 CI also runs docs build/link checks and rename guard checks.

@@ -5,5 +5,6 @@ members = [
     "crates/redis-web-compat",
     "crates/redis-web-hiredis-compat",
     "crates/redis-web",
+    "crates/redis-web-bench",
 ]
 resolver = "2"

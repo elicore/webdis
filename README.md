@@ -43,6 +43,7 @@ It also supports:
 - Redis DB selection in the request path.
 - Command-level ACL enforcement and optional HTTP basic auth.
 - TLS connection options for Redis backends and configurable timeouts/pooling settings.
+- Config-comparison performance benchmarking through `redis-web-bench`.
 - Process controls you usually need in service environments: daemonization, privilege dropping, and structured tracing.
 
 Compatibility is a first-class design goal:
@@ -68,6 +69,9 @@ This is a Rust workspace with five crates:
 - `redis-web`: application entrypoint crate.
   - CLI parsing (`--write-default-config`, legacy/canonical entrypoint behavior).
   - Logging setup, daemonization, privilege dropping, and startup orchestration.
+- `redis-web-bench`: informational benchmark runner for comparing config variants.
+  - Loads a base config plus named override variants from YAML/JSON.
+  - Boots isolated `redis-web` processes, runs benchmark suites, and writes JSON/Markdown artifacts.
 
 ## Subprojects
 
@@ -83,3 +87,4 @@ This is a Rust workspace with five crates:
 - Embedding and deploy docs: [`docs/src/content/docs/guides/embedding.md`](docs/src/content/docs/guides/embedding.md), [`docs/src/content/docs/guides/deployment.md`](docs/src/content/docs/guides/deployment.md)
 - Maintainer architecture: [`docs/src/content/docs/maintainers/architecture.md`](docs/src/content/docs/maintainers/architecture.md), `redis-web.schema.json`
 - Useful build/test entrypoints from repo conventions: `make test`, `make test_all`, `make clean`, `scripts/compose-smoke.sh`
+- Config benchmark comparison entrypoint: `make bench_config_compare SPEC=docs/examples/config/redis-web.bench.yaml`

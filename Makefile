@@ -24,6 +24,9 @@ test_hiredis_compat_fixture:
 bench_hiredis_compat:
 	./crates/redis-web/tests/bench-hiredis-compat.sh
 
+bench_config_compare:
+	cargo run -p redis-web-bench -- compare --spec "$(SPEC)"
+
 compat_redispy_bootstrap:
 	./subprojects/redispy-hiredis-compat/scripts/bootstrap.sh
 
@@ -93,4 +96,4 @@ ci_local_linux_arm:
 
 ci_local: ci_local_linux ci_local_linux_arm
 
-.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat compat_redispy_bootstrap compat_redispy_build_hiredis compat_redispy_test compat_redispy_audit compat_redispy_regression compat_runtime_matrix compat_async_matrix compat_no_unsupported_sync_audit compat_ssl_audit clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm
+.PHONY: all build build_hiredis_compat test_hiredis_compat_fixture bench_hiredis_compat bench_config_compare compat_redispy_bootstrap compat_redispy_build_hiredis compat_redispy_test compat_redispy_audit compat_redispy_regression compat_runtime_matrix compat_async_matrix compat_no_unsupported_sync_audit compat_ssl_audit clean install test perftest test_all ci_local ci_local_linux ci_local_linux_arm

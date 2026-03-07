@@ -39,6 +39,33 @@ Supported values:
 - `rest`: enable the existing HTTP and optional WebSocket surface.
 - `grpc`: enable the gRPC surface instead of REST/WS.
 
+## Worker and Pool Sizing
+
+Use `runtime_worker_threads` to override the Tokio runtime worker count for
+either transport mode.
+
+```json
+{
+  "runtime_worker_threads": 8
+}
+```
+
+Attribute reference:
+
+- `runtime_worker_threads`
+  Default: unset
+  When set, redis-web passes this value to Tokio's multi-thread runtime builder.
+  This affects both REST and gRPC startup paths.
+- `http_threads`
+  Default: `4`
+  This remains the HTTP-side concurrency setting used by redis-web for sizing
+  Redis pool capacity and related HTTP runtime behavior. It is not the Tokio
+  runtime worker-thread count.
+- `pool_size_per_thread`
+  Default: `10`
+  redis-web multiplies this by `http_threads` to derive total Redis pool
+  capacity.
+
 When `transport_mode` is `grpc`, REST-only settings such as `websockets`,
 `default_root`, and `compat_hiredis` remain in the config for compatibility but
 are inactive.

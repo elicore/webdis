@@ -103,6 +103,7 @@ fn test_default_values() {
     assert_eq!(config.daemonize, false);
     assert_eq!(config.websockets, false);
     assert_eq!(config.transport_mode, TransportMode::Rest);
+    assert_eq!(config.runtime_worker_threads, None);
 
     // Verify optional fields are None when not specified
     assert_eq!(config.http_max_request_size, None);
@@ -151,6 +152,10 @@ fn test_default_document_generation() {
     assert_eq!(
         obj.get("http_threads").and_then(|v| v.as_u64()),
         Some(DEFAULT_HTTP_THREADS as u64)
+    );
+    assert!(
+        !obj.contains_key("runtime_worker_threads"),
+        "runtime_worker_threads should be omitted when unset"
     );
     assert_eq!(
         obj.get("pool_size_per_thread").and_then(|v| v.as_u64()),
@@ -412,6 +417,7 @@ fn test_compat_hiredis_config_parses() {
 fn test_grpc_config_parses() {
     let config_json = r#"{
         "transport_mode": "grpc",
+        "runtime_worker_threads": 6,
         "grpc": {
             "host": "127.0.0.1",
             "port": 50051,
@@ -427,6 +433,7 @@ fn test_grpc_config_parses() {
 
     let config = Config::new(file.path().to_str().unwrap()).unwrap();
     assert_eq!(config.transport_mode, TransportMode::Grpc);
+    assert_eq!(config.runtime_worker_threads, Some(6));
     assert_eq!(config.grpc.host, "127.0.0.1");
     assert_eq!(config.grpc.port, 50051);
     assert!(!config.grpc.enable_health_service);
@@ -482,6 +489,10 @@ fn test_default_document_can_use_redis_web_schema_reference() {
     assert_eq!(
         obj.get("$schema").and_then(|v| v.as_str()),
         Some("./redis-web.schema.json")
+    );
+    assert!(
+        !obj.contains_key("runtime_worker_threads"),
+        "runtime_worker_threads should be omitted when unset"
     );
 }
 

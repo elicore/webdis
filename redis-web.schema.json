@@ -68,9 +68,14 @@
     },
     "http_threads": {
       "type": "integer",
-      "description": "Number of Tokio worker threads dedicated to HTTP handling.",
+      "description": "HTTP concurrency setting used for Redis pool sizing and other HTTP-side capacity decisions.",
       "minimum": 1,
       "default": 4
+    },
+    "runtime_worker_threads": {
+      "type": "integer",
+      "description": "Override for the Tokio runtime worker-thread count. When omitted, Tokio chooses its default worker count.",
+      "minimum": 1
     },
     "threads": {
       "type": "integer",

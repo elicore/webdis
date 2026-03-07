@@ -180,11 +180,12 @@ pub fn run(kind: InvocationKind) {
     }
 
     info!("Building Tokio runtime");
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async_main(config));
+    let mut runtime = tokio::runtime::Builder::new_multi_thread();
+    runtime.enable_all();
+    if let Some(worker_threads) = config.runtime_worker_threads {
+        runtime.worker_threads(worker_threads);
+    }
+    runtime.build().unwrap().block_on(async_main(config));
 }
 
 async fn async_main(config: Config) {

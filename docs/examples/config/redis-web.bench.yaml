@@ -1,0 +1,10 @@
+base_config: ../../examples/config/webdis.json
+output_dir: ../../../target/perf
+variants:
+  - name: rest-ws
+    overrides:
+      websockets: true
+  - name: grpc-8-workers
+    overrides:
+      transport_mode: grpc
+      runtime_worker_threads: 8

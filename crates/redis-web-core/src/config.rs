@@ -27,6 +27,7 @@ pub struct Config {
     #[serde(default)]
     pub transport_mode: TransportMode,
     pub http_threads: Option<usize>,
+    pub runtime_worker_threads: Option<usize>,
     #[serde(default, rename = "threads", skip_serializing, alias = "threads")]
     legacy_http_threads: Option<usize>,
     #[serde(default)]
@@ -277,6 +278,7 @@ impl Default for Config {
             http_port: default_http_port(),
             transport_mode: TransportMode::default(),
             http_threads: Some(DEFAULT_HTTP_THREADS),
+            runtime_worker_threads: None,
             legacy_http_threads: None,
             database: DEFAULT_DATABASE,
             pool_size_per_thread: Some(DEFAULT_POOL_SIZE_PER_THREAD),
@@ -342,6 +344,7 @@ const DEFAULT_CONFIG_KEY_ORDER: &[&str] = &[
     "http_host",
     "http_port",
     "http_threads",
+    "runtime_worker_threads",
     "pool_size_per_thread",
     "database",
     "daemonize",
