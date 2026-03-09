@@ -74,6 +74,8 @@ All notable changes to this project will be documented in this file.
 
 - *(changelog)* Update CHANGELOG.md ([d310bf2](https://github.com/elicore/redis-web/commit/d310bf29d51d8f7f644edbbddcc9da76d59614a2))
 
+- *(changelog)* Update CHANGELOG.md ([0091314](https://github.com/elicore/redis-web/commit/0091314ca4310f27a8cb165481d79703dbace905))
+
 
 ### Features
 
@@ -126,6 +128,8 @@ All notable changes to this project will be documented in this file.
 - *(compat)* Provide upstream hiredis runtime parity artifacts ([41fae8e](https://github.com/elicore/redis-web/commit/41fae8e658fb2c0da2257cfb777faf201525c390))
 
 - *(compat)* Add upstream-style hiredis ssl artifact parity ([032b5ce](https://github.com/elicore/redis-web/commit/032b5ce424540b6207772d051da1f565007471e3))
+
+- Add config benchmark comparison tool ([023344d](https://github.com/elicore/redis-web/commit/023344d32ed5f3c14eaea453851dbae6fdf25cdc))
 
 
 ### Miscellaneous Tasks
@@ -235,6 +239,11 @@ All notable changes to this project will be documented in this file.
 ### Root
 
 - Fork point snapshot ([9a120cb](https://github.com/elicore/redis-web/commit/9a120cb778a0796b54ba6dbfcdb5ee0287c83473))
+
+
+### Style
+
+- Format hiredis compat files ([a5c5a21](https://github.com/elicore/redis-web/commit/a5c5a211a36615cfcf9d6abed8b0c292ac350cff))
 
 
 
