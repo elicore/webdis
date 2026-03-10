@@ -1,11 +1,9 @@
 name: Build & push Docker image (GHCR)
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-    branches:
-      - main
+  release:
+    types:
+      - published
   workflow_dispatch:
 
 concurrency:
@@ -78,8 +76,8 @@ jobs:
         run: |
           echo "IMAGE_NAME=ghcr.io/${{ env.owner_lc }}/redis-web" >> "$GITHUB_ENV"
           echo "LEGACY_IMAGE_NAME=ghcr.io/${{ env.owner_lc }}/webdis" >> "$GITHUB_ENV"
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "IMAGE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "IMAGE_TAG=${{ github.event.release.tag_name }}" >> "$GITHUB_ENV"
           else
             echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_ENV"
           fi
