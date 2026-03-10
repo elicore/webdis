@@ -80,6 +80,8 @@ All notable changes to this project will be documented in this file.
 
 - *(changelog)* Update CHANGELOG.md ([1607d20](https://github.com/elicore/redis-web/commit/1607d20484522e50d4349108213dbd8c012d1983))
 
+- *(changelog)* Update CHANGELOG.md ([c3319ba](https://github.com/elicore/redis-web/commit/c3319ba6cbded80a61162ea317961d6b2b93da7a))
+
 
 ### Features
 
@@ -165,6 +167,8 @@ All notable changes to this project will be documented in this file.
 - *(CI)* Update GitHub Actions workflow to enhance Docker image metadata handling and signing process ([2fe7d43](https://github.com/elicore/redis-web/commit/2fe7d43d75ff06c4ba9f03907c8ecbcfdc3de197))
 
 - Add benchmark optimization investigation task ([08fef94](https://github.com/elicore/redis-web/commit/08fef94420b6ef1cef809033d876c544fe812c7b))
+
+- *(dev)* Remove docker compose version ([ac3f93d](https://github.com/elicore/redis-web/commit/ac3f93dcbb6bfb36a5cd66773a50ee10c1ff5ef9))
 
 
 ### Parity
