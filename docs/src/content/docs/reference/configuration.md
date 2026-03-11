@@ -149,13 +149,74 @@ clients.
 Current behavior:
 
 - The bridge is enabled by default (`"enabled": true`) so existing deployments do not need extra config to expose `/__compat/*`.
-- `path_prefix` is normalized to a leading slash and used for session and stream routes.
+- `path_prefix` is normalized by the runtime to a leading slash and used for all compat routes.
 - `session_ttl_sec` controls idle cleanup and keeps stale sessions from leaking resources.
 - `max_sessions` limits concurrent active sessions.
 - `max_pipeline_commands` rejects oversized pipelined payloads in one request.
 
 For v1, transport mode selection is handled by redis-web only; direct/HTTP/ws mode
 switching and richer auth controls are currently not configured through `compat_hiredis`.
+
+## Practical `compat_hiredis` runbook
+
+### Mount route prefix
+
+The prefix is normalized before route registration. This means these values are all
+equivalent in config:
+
+```json
+{ "compat_hiredis": { "path_prefix": "__compat" } }
+```
+
+```json
+{ "compat_hiredis": { "path_prefix": "compat" } }
+```
+
+```json
+{ "compat_hiredis": { "path_prefix": "/compat/" } }
+```
+
+All normalize to `/compat`.
+
+```bash
+# verify mounted session endpoint
+curl -i -X POST http://127.0.0.1:7379/compat/session
+```
+
+### Hardening knobs
+
+Use these defaults when a hard limit is desired for embedded clients.
+
+```json
+{
+  "compat_hiredis": {
+    "enabled": true,
+    "path_prefix": "/__compat",
+    "session_ttl_sec": 30,
+    "max_sessions": 64,
+    "max_pipeline_commands": 4
+  }
+}
+```
+
+- `session_ttl_sec`: session cleanup happens on access, not per command heartbeat.
+- `max_sessions`: create will return `429` when the pool is exhausted.
+- `max_pipeline_commands`: command endpoint returns `400` when the request frame count
+  exceeds this limit.
+
+### Troubleshooting map
+
+If commands are unexpectedly failing with `-ERR forbidden`:
+
+- Check `acl` policy for the command name.
+- Confirm client auth header is what the server expects.
+- Compare to REST mode behavior; compat endpoint and regular HTTP route both share the
+  same ACL engine but return command-level RESP error text.
+
+### Test ownership
+
+- Static field defaults and config decoding coverage: `crates/redis-web/tests/config_test.rs`
+- Runtime compat route behavior: `crates/redis-web/tests/integration_hiredis_compat_test.rs`
 
 ## Examples
 
