@@ -3,6 +3,16 @@ title: Webdis Compatibility and Migration
 description: Scope, migration steps, and how compatibility is tested.
 ---
 
+## Feature tracks
+
+This surface tracks three active compatibility areas:
+
+- `webdis` migration and bootstrap behavior
+- `compat_hiredis` REST endpoint compatibility
+- `redis-web-hiredis-compat` ABI/harness compatibility
+
+Use this page as the owner mapping and go-to validation index for Track 1 and Track 2.
+
 This project intentionally preserves compatibility where migration safety
 matters.
 
@@ -18,39 +28,43 @@ Intentionally shifted:
 - Documentation is rewritten for the current implementation instead of forked
   historical docs
 
-Legacy forked docs were pruned and replaced by compatibility-focused pages and
-tests in this section.
+Legacy forked docs were replaced by compatibility-focused pages and tests in this
+section.
 
-## Migration guide (webdis -> redis-web)
+## Track 1: webdis migration
 
-This section gives direct before/after mappings for runtime, config, Docker,
-and CI surfaces.
+### CLI and startup behavior
 
-### CLI migration
-
-Before:
+#### Before
 
 ```bash
 webdis webdis.json
 webdis --write-default-config --config ./webdis.generated.json
 ```
 
-After:
+#### After
 
 ```bash
 redis-web redis-web.json
 redis-web --write-default-config --config ./redis-web.generated.json
 ```
 
-Compatibility fallback still works:
+Compatibility behavior is implemented in `redis-web/src/lib.rs` and
+`redis-web-compat/src/lib.rs`:
 
-```bash
-redis-web   # loads redis-web.json, then falls back to webdis.json
-```
+- `redis-web` resolves default config in this order:
+  - prefer `redis-web.json`
+  - fallback to `webdis.json`
+  - default to `redis-web.json` if neither exists
+- `redis-web` prints a fallback notice only when it resolves to legacy `webdis.json`.
+- `webdis` prints the deprecation notice before startup.
+- `--write-default-config` writes schema paths tied to the invoked binary name:
+  - `./redis-web.schema.json` for canonical binary
+  - `./webdis.schema.json` for legacy binary name
 
-### Config and schema file migration
+### Config and schema migration
 
-Before:
+Legacy names and schema:
 
 ```text
 webdis.json
@@ -58,7 +72,7 @@ webdis.prod.json
 webdis.schema.json
 ```
 
-After:
+Canonical names and schema:
 
 ```text
 redis-web.json
@@ -66,126 +80,105 @@ redis-web.prod.json
 redis-web.schema.json
 ```
 
-Recommended update in config documents:
-
-Before:
+Typical legacy-to-canonical schema migration in config docs:
 
 ```json
 "$schema": "./webdis.schema.json"
 ```
 
-After:
+becomes
 
 ```json
 "$schema": "./redis-web.schema.json"
 ```
 
-### Rust crate import migration
+### Runtime surface migration notes
 
-Before:
-
-```rust
-use webdis::server;
-use webdis::config::Config;
-```
-
-After:
-
-```rust
-use redis_web_runtime::server;
-use redis_web_core::config::Config;
-```
-
-### Docker image migration (GHCR)
-
-Before:
-
-```yaml
-image: ghcr.io/elicore/webdis:latest
-```
-
-After:
-
-```yaml
-image: ghcr.io/elicore/redis-web:latest
-```
-
-Pinned production tag example:
-
-```yaml
-image: ghcr.io/elicore/redis-web:1.0.0
-```
-
-### Compose service name migration
-
-Before:
-
-```yaml
-services:
-  webdis:
-    image: ghcr.io/elicore/webdis:latest
-```
-
-After:
-
-```yaml
-services:
-  redis-web:
-    image: ghcr.io/elicore/redis-web:latest
-```
-
-### Script migration
-
-Before:
-
-```bash
-./scripts/start-webdis.sh --mode dev
-```
-
-After:
-
-```bash
-./scripts/start-redis-web.sh --mode dev
-```
-
-`start-webdis.sh` remains as a deprecated compatibility wrapper.
-
-### CI migration examples
-
-Before:
-
-```bash
-cargo test --test config_test
-cargo test --test integration_process_boot_test
-```
-
-After:
+- `start-webdis.sh` remains as a compatibility wrapper.
+- CI command names should target package-qualified tests:
 
 ```bash
 cargo test -p redis-web --test config_test
 cargo test -p redis-web --test integration_process_boot_test
 ```
 
-## Compatibility test matrix
+- Docker image name changed to `ghcr.io/elicore/redis-web`.
+- Service naming should migrate from `webdis` service keys to `redis-web` in compose.
 
-Compatibility is validated by functional and integration tests in
-`crates/redis-web/tests`.
+## Track 2: compat endpoint compatibility
 
-Key cases:
+The `compat_hiredis` bridge mounts REST endpoints by default in REST mode and is
+not mounted for gRPC mode.
 
-- config alias keys (`threads`, `pool_size`)
-- env-var expansion behavior
-- default config precedence (`redis-web.json` then `webdis.json`)
-- alias binary deprecation path
-- request parsing parity (DB prefix, percent decoding)
-- output format and status code mappings
+- Runtime source: `crates/redis-web-runtime/src/server.rs`
+- Endpoint behavior source: `crates/redis-web-runtime/src/compat.rs`
 
-Run focused compatibility tests:
+Key runtime behavior:
+
+- `compat_hiredis.path_prefix` changes all mounted endpoints.
+- `/session` creates a new session and returns session metadata.
+- `/cmd/{session_id}.raw` executes one or more RESP command frames in order.
+- `/stream/{session_id}.raw` keeps a pub/sub stream open and sends RESP messages.
+- `/ws/{session_id}` provides the websocket transport variant.
+
+`path_prefix` defaults to `/__compat` and is normalized to a leading slash and
+without trailing slash in settings.
+
+Operational limits:
+
+- `max_pipeline_commands` rejects oversized pipelined command payloads in a single request.
+- `max_sessions` limits concurrent sessions.
+- `session_ttl_sec` controls idle timeout cleanup of sessions.
+- ACL checks reuse the server auth pipeline; forbidden commands are returned as
+  `-ERR forbidden` frames with HTTP `200`.
+
+## Track 3: ABI bridge and external compatibility
+
+The ABI bridge documentation lives in:
+
+- `docs/compatibility/hiredis-dropin.md`
+- `docs/compatibility/hiredis-client-integration.md`
+
+Keep it aligned with:
+
+- `crates/redis-web-hiredis-compat`
+- `scripts/build-hiredis-compat.sh`
+- `subprojects/redispy-hiredis-compat`
+
+## Compatibility coverage matrix
+
+This matrix is the one-to-one mapping between feature claims and test owners:
+
+| Track | Feature owner | Test owner | Test target |
+|---|---|---|---|
+| Webdis migration | `redis-web/src/lib.rs`, `redis-web-compat/src/lib.rs` | bootstrap/integration test maintainer | `crates/redis-web/tests/integration_process_boot_test.rs`, `crates/redis-web/tests/config_test.rs` |
+| Compat endpoints | `crates/redis-web-runtime/src/server.rs`, `crates/redis-web-runtime/src/compat.rs` | runtime maintainer | `crates/redis-web/tests/integration_hiredis_compat_test.rs`, `crates/redis-web/tests/config_test.rs` |
+| ABI bridge | `crates/redis-web-hiredis-compat`, `scripts/build-hiredis-compat.sh`, `subprojects/redispy-hiredis-compat` | compatibility harness maintainer | `make compat_redispy_bootstrap`, `make compat_redispy_audit`, `make compat_ssl_audit`, `make test_hiredis_compat_fixture` |
+
+Suggested focused commands:
 
 ```bash
 cargo test -p redis-web --test config_test
-cargo test -p redis-web --test functional_interface_mapping_test
 cargo test -p redis-web --test integration_process_boot_test
+cargo test -p redis-web --test integration_hiredis_compat_test
+make compat_redispy_bootstrap
+make compat_redispy_audit
+make compat_ssl_audit
+make test_hiredis_compat_fixture
+```
+
+## Verification sequence for publication
+
+If these commands are not green, compatibility docs must not be treated as final.
+
+```bash
+cargo test -p redis-web --test config_test
+cargo test -p redis-web --test integration_process_boot_test
+cargo test -p redis-web --test integration_hiredis_compat_test
+make compat_redispy_bootstrap
+make compat_redispy_audit
+make compat_ssl_audit
+make test_hiredis_compat_fixture
 ```
 
 ## Release and deprecation milestones

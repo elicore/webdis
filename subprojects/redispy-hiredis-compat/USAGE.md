@@ -77,6 +77,26 @@ This validates:
 - Optional runtime check: `VERIFY_HIREDIS_ACTIVE=1`.
 - Optional verify script override (for regression testing): `VERIFY_HIREDIS_SCRIPT=/path/to/script.py`.
 
+### Expected artifact and audit outputs
+
+During the audit flow, script outputs are written into `.artifacts/` and include:
+
+- `hiredis-required-symbols.txt`
+- `hiredis-provided-symbols.txt`
+- `hiredis-ssl-provided-symbols.txt`
+- `hiredis-provided-all-symbols.txt`
+- `hiredis-missing-symbols.txt`
+- `symbol-audit.txt`
+- `hiredis-upstream-provided-symbols.txt`
+- `hiredis-missing-vs-upstream-symbols.txt`
+- `hiredis-ssl-missing-vs-upstream-symbols.txt`
+- `hiredis-upstream-header-api.txt`
+- `hiredis-compat-header-api.txt`
+- `hiredis-missing-header-api.txt`
+
+`hiredis-missing-symbols.txt` is a hard gate for the target hiredis extension, while
+`STRICT_UPSTREAM_PARITY=1` additionally treats upstream parity gaps in upstream symbol and header APIs as blocking failures.
+
 ### Redis test topology
 
 The harness can manage Redis automatically:

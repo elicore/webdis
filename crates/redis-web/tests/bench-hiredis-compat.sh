@@ -10,8 +10,25 @@ ITERATIONS="${ITERATIONS:-100}"
 
 compat_url="http://${HOST}:${PORT}/__compat/session"
 
+response=$(curl -sSf -X POST "$compat_url" 2>/dev/null || true)
+if [[ -z "${response}" ]]; then
+  /bin/cat <<'EOF' >/dev/stderr
+[compat-bench] failed to create compat session.
+Start redis-web on ${HOST}:${PORT} with compat endpoints enabled before running this benchmark.
+Example:
+  ./target/debug/redis-web redis-web.json
+EOF
+  exit 1
+fi
+if [[ "${response}" != *\"session_id\"* ]]; then
+  /bin/cat <<EOF >/dev/stderr
+[compat-bench] unexpected response from ${compat_url}: ${response}
+EOF
+  exit 1
+fi
+
 echo "[compat-bench] Creating compat session on ${compat_url}"
-session_id=$(curl -sS -X POST "$compat_url" | sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p')
+session_id=$(printf '%s' "$response" | sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p')
 if [[ -z "${session_id}" ]]; then
   echo "[compat-bench] failed to create session"
   exit 1

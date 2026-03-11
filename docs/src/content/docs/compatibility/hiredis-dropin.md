@@ -64,11 +64,47 @@ The bridge is controlled by the root `compat_hiredis` section in `redis-web.json
 
 - `REDIS_WEB_COMPAT_MUTE_HTTP_PUBSUB_WARNING=1` disables the one-time warning when a session falls back to HTTP stream mode for pub/sub flows.
 
+## ABI build lifecycle
+
+Use this sequence to produce distribution artifacts locally:
+
+```bash
+make build_hiredis_compat
+make test_hiredis_compat_fixture
+```
+
+`build_hiredis_compat` runs `scripts/build-hiredis-compat.sh`, which:
+
+- builds `redis-web-hiredis-compat` in release mode,
+- stages upstream hiredis headers at `target/hiredis-compat-dist/include/hiredis`,
+- stages C API artifacts in `target/hiredis-compat-dist/lib`,
+- stages both `hiredis.pc` and `redisweb-hiredis.pc` in `target/hiredis-compat-dist/pkgconfig`,
+- optionally stages SSL artifacts if `HIREDIS_COMPAT_ENABLE_SSL=1`.
+
+Naming modes are both supported in this same staging layout:
+
+- `libhiredis*` exports for drop-in consumers,
+- `libredisweb_hiredis*` canonical `redis-web` exports.
+
 ## Naming Modes
 
 The plan supports two naming modes:
 - `libhiredis*` compatibility naming for drop-in relink scenarios
 - `libredisweb_hiredis*` canonical naming for explicit integrations
+
+## Symbol and header audit checks
+
+For CI-safe ABI maintenance, use these two checks:
+
+```bash
+make compat_redispy_audit
+make compat_ssl_audit
+```
+
+`compat_redispy_audit` validates required symbols against the local `hiredis-py` extension and performs upstream parity reporting.
+`compat_ssl_audit` additionally checks SSL-library symbol visibility and staging.
+
+Set `STRICT_UPSTREAM_PARITY=1` when missing upstream parity should hard-fail during release preparation.
 
 ## Example workflows
 

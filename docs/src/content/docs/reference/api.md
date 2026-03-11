@@ -174,3 +174,85 @@ curl -sS -X DELETE "$BASE/__compat/session/$SESSION_ID"
 
 If HTTP-stream pub/sub is used, redis-web emits a one-time warning by default.
 Set `REDIS_WEB_COMPAT_MUTE_HTTP_PUBSUB_WARNING=1` to suppress it.
+
+## Practical compat route runbook
+
+### Route prefix overrides
+
+The compatibility routes are mounted under `compat_hiredis.path_prefix` and
+normalized before registration.
+
+```json
+{
+  "compat_hiredis": {
+    "path_prefix": "/compat"
+  }
+}
+```
+
+mounts to `/compat/session` instead of `/__compat/session`.
+
+```bash
+BASE=http://127.0.0.1:7379
+curl -sS -X POST "$BASE/compat/session"
+```
+
+### Command and session checks
+
+For every request on `/.../cmd/{session}.raw`, redis-web parses all concatenated RESP
+frames in one request and executes them in order.
+
+```bash
+SESSION_ID=...
+
+# command + pipelined command in one request
+curl -sS -X POST "$BASE/compat/cmd/$SESSION_ID.raw" \
+  --data-binary $'*2\r\n$3\r\nGET\r\n$7\r\nhealthz\r\n*2\r\n$3\r\nPING\r\n$4\r\nping\r\n'
+```
+
+Behavior notes:
+
+- Empty body returns `-ERR Empty command body` with HTTP `400`.
+- Unsupported parse shape returns `-ERR Invalid RESP command` with HTTP `400`.
+- `-ERR forbidden` is emitted per disallowed command while allowing other commands in
+  the same pipeline to execute.
+
+### Limits and lifecycle
+
+- `max_pipeline_commands` controls how many RESP frames can be sent per request.
+  Exceeding this returns HTTP `400` with `-ERR Pipelined command limit exceeded`.
+- `max_sessions` caps total concurrent active sessions. Requests returning `429` include:
+  `{"error":"compat session limit reached"}`.
+- Idle sessions are evicted on request-driven access checks once
+  `session_ttl_sec` elapsed since last command interaction.
+- `DELETE /__compat/session/{session_id}` returns `204` for successful cleanup and
+  `404` for unknown sessions.
+
+### Transport mode and startup check
+
+Compat endpoints are mounted only when:
+
+- `transport_mode` is `rest`
+- `compat_hiredis.enabled` is true
+
+Use the command below to confirm mount behavior in config-only runs:
+
+```bash
+redis-web --write-default-config --config /tmp/default.json
+```
+
+### Troubleshooting
+
+- If `POST /__compat/session` returns `503`, Redis backend startup is not yet ready.
+- If responses are all `-ERR forbidden`, verify ACL configuration and auth headers.
+  The compat endpoints share the same ACL policy as normal request handlers.
+- If you still receive `404` for a valid session ID, confirm that your client uses
+  exactly the session ID returned in `POST /__compat/session`.
+
+### Test ownership map
+
+- API examples and runtime flow assertions:
+  `crates/redis-web/tests/integration_hiredis_compat_test.rs`
+- Limits, path normalization, and auth/forbidden behavior are tracked in the same test
+  suite and should be expanded before publishing endpoint runbook claims.
+- `compat_hiredis` decoding and defaults: `crates/redis-web/tests/config_test.rs`

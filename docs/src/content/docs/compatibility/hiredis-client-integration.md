@@ -46,6 +46,48 @@ The local harness in this repository automates this flow:
 3. Install patched wheel into an isolated venv.
 4. Run redis-py standalone tests.
 
+### Artifact and script lifecycle
+
+The recommended lifecycle for both validation and one-off consumer runs is:
+
+1. Prepare submodule and redis-py build environment:
+
+```bash
+make compat_redispy_bootstrap
+```
+
+2. Stage compat headers/libs/pkconfig and build a redis-py+`hiredis-py` wheel against them:
+
+```bash
+make compat_redispy_build_hiredis
+```
+
+3. Run symbol/header audit before broader runtime checks:
+
+```bash
+make compat_redispy_audit
+```
+
+4. Optionally include SSL parity verification:
+
+```bash
+make compat_ssl_audit
+```
+
+5. Run redis-py compatibility smoke/regression:
+
+```bash
+make compat_redispy_regression
+make compat_redispy_test
+```
+
+Artifacts are staged through `subprojects/redispy-hiredis-compat/.dist/hiredis/` and
+`.artifacts/` by the script chain, and symbol audits emit:
+
+- `hiredis-missing-symbols.txt`
+- `hiredis-missing-vs-upstream-symbols.txt`
+- `hiredis-missing-header-api.txt`
+
 ### Commands
 
 ```bash
