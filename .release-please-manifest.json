@@ -1,6 +1,6 @@
 {
-  "crates/redis-web-core": "0.1.0",
-  "crates/redis-web-runtime": "0.1.0",
-  "crates/redis-web-compat": "0.1.0",
-  "crates/redis-web": "0.1.0"
+  "crates/redis-web-core": "0.2.0",
+  "crates/redis-web-runtime": "0.2.0",
+  "crates/redis-web-compat": "0.2.0",
+  "crates/redis-web": "0.2.0"
 }
