@@ -102,17 +102,6 @@
       "maximum": 255,
       "default": 0
     },
-    "daemonize": {
-      "type": "boolean",
-      "description": "Legacy compatibility option. The canonical binary runs in the foreground; use your service manager if you need daemonization.",
-      "default": false,
-      "deprecated": true
-    },
-    "pidfile": {
-      "type": "string",
-      "description": "Legacy compatibility option. Process supervisors should manage PID files externally if they still need one.",
-      "deprecated": true
-    },
     "websockets": {
       "type": "boolean",
       "description": "Enable WebSocket endpoint (/.json) for Pub/Sub and command execution.",
@@ -134,16 +123,6 @@
       "minimum": 1,
       "default": 134217728
     },
-    "user": {
-      "type": "string",
-      "description": "Legacy compatibility option. Prefer your container or service manager for privilege separation.",
-      "deprecated": true
-    },
-    "group": {
-      "type": "string",
-      "description": "Legacy compatibility option. Prefer your container or service manager for privilege separation.",
-      "deprecated": true
-    },
     "default_root": {
       "type": "string",
       "description": "Redis command executed when the root path (/) is requested, e.g. /GET/index.html."
@@ -153,15 +132,6 @@
       "description": "Logging verbosity level (0=errors only, 4=debug, >=5 trace).",
       "minimum": 0,
       "default": 4
-    },
-    "logfile": {
-      "type": "string",
-      "description": "Legacy compatibility option. The canonical binary logs to stderr; use shell redirection or your service manager if you need a file.",
-      "deprecated": true
-    },
-    "log_fsync": {
-      "$ref": "#/$defs/logFsync",
-      "deprecated": true
     },
     "hiredis": {
       "type": "object",
@@ -252,24 +222,6 @@
           "description": "Override SNI hostname when negotiating TLS with Redis."
         }
       }
-    },
-    "logFsync": {
-      "description": "Controls how aggressively redis-web fsyncs its logs. \"all\" can be very expensive.",
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "auto",
-            "all"
-          ],
-          "description": "Named fsync policies (\"auto\" = no explicit fsync, \"all\" = fsync after each log write)."
-        },
-        {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Fsync interval in milliseconds (fsync at most once per interval)."
-        }
-      ]
     },
     "compatHiredisConfig": {
       "type": "object",

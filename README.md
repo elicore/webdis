@@ -73,6 +73,7 @@ Compatibility is a first-class design goal:
 - Legacy `webdis` naming, aliases, and config keys are supported.
 - `hiredis` clients (including `redis-py` flows that use `hiredis-py`) can be supported through a staged C ABI compatibility layer (`libhiredis`-style symbols and headers).
 - gRPC runs through the separate `redis-web-grpc` binary so the default HTTP path stays small.
+- Legacy process-manager config knobs are not supported anymore. Configs that still use `daemonize`, `pidfile`, `user`, `group`, `logfile`, or `log_fsync` must be updated to use a foreground `redis-web` process plus your shell, supervisor, container runtime, or service manager for backgrounding, privilege separation, and log handling.
 
 ## Workspace layout and crate responsibilities
 
@@ -107,6 +108,5 @@ heavier compatibility and benchmarking surfaces.
 - Compatibility references: [`docs/src/content/docs/compatibility/webdis-compatibility.md`](docs/src/content/docs/compatibility/webdis-compatibility.md), [`docs/src/content/docs/compatibility/hiredis-dropin.md`](docs/src/content/docs/compatibility/hiredis-dropin.md), [`docs/src/content/docs/compatibility/hiredis-client-integration.md`](docs/src/content/docs/compatibility/hiredis-client-integration.md), [`subprojects/redispy-hiredis-compat/USAGE.md`](subprojects/redispy-hiredis-compat/USAGE.md)
 - Embedding and deploy docs: [`docs/src/content/docs/guides/embedding.md`](docs/src/content/docs/guides/embedding.md), [`docs/src/content/docs/guides/deployment.md`](docs/src/content/docs/guides/deployment.md)
 - Maintainer architecture: [`docs/src/content/docs/maintainers/architecture.md`](docs/src/content/docs/maintainers/architecture.md), `redis-web.schema.json`
-- Deprecated features: [`docs/src/content/docs/maintainers/deprecations.md`](docs/src/content/docs/maintainers/deprecations.md)
 - Core build/test entrypoints from repo conventions: `cargo build`, `make test`, `make test_integration`, `make clean`, `scripts/compose-smoke.sh`
 - Heavier opt-in entrypoints: `make test_grpc`, `make test_compat`, `make test_all`, `make perftest`, `make bench_config_compare SPEC=docs/examples/config/redis-web.bench.yaml`

@@ -28,8 +28,10 @@ Intentionally shifted:
 - Documentation is rewritten for the current implementation instead of forked
   historical docs
 
-The current list of deprecated knobs and compatibility-only features is tracked
-in [Deprecated Features](/maintainers/deprecations/).
+The compatibility surface no longer includes legacy process-manager behavior.
+Configs must drop `daemonize`, `pidfile`, `user`, `group`, `logfile`, and
+`log_fsync` in favor of a foreground process managed by the surrounding shell,
+container, or service supervisor.
 
 Legacy forked docs were replaced by compatibility-focused pages and tests in this
 section.

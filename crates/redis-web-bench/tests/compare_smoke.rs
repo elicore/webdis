@@ -122,7 +122,7 @@ fn write_base_config(tempdir: &TempDir, redis_port: u16) -> PathBuf {
     fs::write(
         &path,
         format!(
-            "{{\n  \"redis_host\": \"127.0.0.1\",\n  \"redis_port\": {redis_port},\n  \"http_host\": \"127.0.0.1\",\n  \"http_port\": 7379,\n  \"daemonize\": false,\n  \"verbosity\": 0\n}}\n"
+            "{{\n  \"redis_host\": \"127.0.0.1\",\n  \"redis_port\": {redis_port},\n  \"http_host\": \"127.0.0.1\",\n  \"http_port\": 7379,\n  \"verbosity\": 0\n}}\n"
         ),
     )
     .unwrap();

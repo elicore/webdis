@@ -177,12 +177,12 @@ fn test_redis_web_prefers_redis_web_min_json_when_present() {
     let tmp = TempDir::new().expect("temp dir should be created");
     fs::write(
         tmp.path().join("redis-web.min.json"),
-        r#"{"logfile":"$REDIS_WEB_MIN_SELECTED"}"#,
+        r#"{"redis_host":"$REDIS_WEB_MIN_SELECTED"}"#,
     )
     .expect("redis-web.min config should be written");
     fs::write(
         tmp.path().join("webdis.json"),
-        r#"{"logfile":"$WEBDIS_SELECTED"}"#,
+        r#"{"redis_host":"$WEBDIS_SELECTED"}"#,
     )
     .expect("webdis config should be written");
 

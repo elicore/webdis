@@ -107,7 +107,6 @@ pub fn functional_config() -> Config {
     cfg.http_port = 0;
     cfg.http_threads = Some(1);
     cfg.pool_size_per_thread = Some(1);
-    cfg.daemonize = false;
     cfg.websockets = true;
     cfg.database = 0;
     cfg.acl = None;

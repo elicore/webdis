@@ -28,8 +28,8 @@ pub(crate) struct LaunchedServer {
 
 impl LaunchedServer {
     pub(crate) async fn start(config: &Config, workspace_root: &Path) -> Result<Self> {
-        ensure_redis_web_binary(workspace_root)?;
-        let binary = redis_web_binary_path(workspace_root)?;
+        ensure_binary_for_mode(workspace_root, config.transport_mode)?;
+        let binary = binary_path_for_mode(workspace_root, config.transport_mode)?;
         let tempdir = tempfile::tempdir().context("failed to create tempdir for benchmark run")?;
         let port = pick_unused_local_port()?;
         let mut json =
@@ -111,7 +111,6 @@ fn prepare_runtime_config(json: &mut Value, mode: TransportMode, port: u16) -> R
     let object = json
         .as_object_mut()
         .ok_or_else(|| anyhow!("serialized config should be an object"))?;
-    object.insert("daemonize".to_string(), Value::Bool(false));
     object.insert("verbosity".to_string(), Value::from(0));
 
     match mode {
@@ -137,9 +136,16 @@ fn prepare_runtime_config(json: &mut Value, mode: TransportMode, port: u16) -> R
     Ok(())
 }
 
-fn ensure_redis_web_binary(workspace_root: &Path) -> Result<()> {
-    static BUILD_ONCE: OnceLock<()> = OnceLock::new();
-    if BUILD_ONCE.get().is_some() {
+fn ensure_binary_for_mode(workspace_root: &Path, mode: TransportMode) -> Result<()> {
+    static REST_BUILD_ONCE: OnceLock<()> = OnceLock::new();
+    static GRPC_BUILD_ONCE: OnceLock<()> = OnceLock::new();
+
+    let (bin_name, build_once) = match mode {
+        TransportMode::Rest => ("redis-web", &REST_BUILD_ONCE),
+        TransportMode::Grpc => ("redis-web-grpc", &GRPC_BUILD_ONCE),
+    };
+
+    if build_once.get().is_some() {
         return Ok(());
     }
 
@@ -148,21 +154,25 @@ fn ensure_redis_web_binary(workspace_root: &Path) -> Result<()> {
         .arg("-p")
         .arg("redis-web")
         .arg("--bin")
-        .arg("redis-web")
+        .arg(bin_name)
         .arg("--release")
         .current_dir(workspace_root)
         .status()
-        .context("failed to build redis-web benchmark target")?;
+        .with_context(|| format!("failed to build {bin_name} benchmark target"))?;
     if !status.success() {
-        bail!("cargo build -p redis-web --bin redis-web --release failed");
+        bail!("cargo build -p redis-web --bin {bin_name} --release failed");
     }
 
-    let _ = BUILD_ONCE.set(());
+    let _ = build_once.set(());
     Ok(())
 }
 
-fn redis_web_binary_path(workspace_root: &Path) -> Result<PathBuf> {
-    let path = workspace_root.join("target/release/redis-web");
+fn binary_path_for_mode(workspace_root: &Path, mode: TransportMode) -> Result<PathBuf> {
+    let bin_name = match mode {
+        TransportMode::Rest => "redis-web",
+        TransportMode::Grpc => "redis-web-grpc",
+    };
+    let path = workspace_root.join(format!("target/release/{bin_name}"));
     if path.exists() {
         Ok(path)
     } else {

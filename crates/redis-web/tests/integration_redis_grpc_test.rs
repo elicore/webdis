@@ -119,7 +119,6 @@ async fn test_grpc_reflection_can_be_enabled() {
             "enable_reflection": true
         },
         "database": 0,
-        "daemonize": false,
         "verbosity": 5
     });
 

@@ -12,4 +12,4 @@ Use this split to navigate quickly:
 - Integrators: [HTTP and WebSocket API](/reference/api/), [Configuration](/reference/configuration/), and [gRPC Development](/guides/grpc-development/)
 - Deployment: [Deployment (Docker and Security)](/guides/deployment/)
 - Migration users: [Webdis Compatibility and Migration](/compatibility/webdis-compatibility/)
-- Maintainers: [Maintainers Guide](/maintainers/architecture/), [Deprecated Features](/maintainers/deprecations/), and [Benchmark Catalog](/maintainers/benchmark-catalog/)
+- Maintainers: [Maintainers Guide](/maintainers/architecture/) and [Benchmark Catalog](/maintainers/benchmark-catalog/)

@@ -21,14 +21,6 @@ Compatibility keys still accepted:
 
 - `threads` alias for `http_threads`
 - `pool_size` alias for `pool_size_per_thread`
-- Legacy process-manager keys are still parsed for compatibility, but the
-  main `redis-web` binary ignores them:
-  - `daemonize`
-  - `pidfile`
-  - `user`
-  - `group`
-  - `logfile`
-  - `log_fsync`
 
 Environment variable expansion supports exact `$VARNAME` string values.
 
@@ -109,10 +101,17 @@ The main `redis-web` binary now runs in the foreground and logs to stderr by
 default. Use your service manager, container runtime, or shell redirection to
 daemonize or capture output if you need those behaviors.
 
-Legacy process-manager options remain in the config schema for transition
-compatibility, but they are omitted from generated defaults and ignored by the
-main `redis-web` binary. See [Deprecated Features](/maintainers/deprecations/)
-for the current list.
+These legacy process-manager keys are no longer accepted in config files:
+
+- `daemonize`
+- `pidfile`
+- `user`
+- `group`
+- `logfile`
+- `log_fsync`
+
+If an older config still uses them, remove them and move that behavior into the
+surrounding runtime environment instead.
 
 ## gRPC Surface
 

@@ -93,15 +93,6 @@
       "maximum": 255,
       "default": 0
     },
-    "daemonize": {
-      "type": "boolean",
-      "description": "Whether to run Webdis in the background as a daemon.",
-      "default": false
-    },
-    "pidfile": {
-      "type": "string",
-      "description": "Override path to the PID file when running as a daemon. Defaults to webdis.pid when omitted."
-    },
     "websockets": {
       "type": "boolean",
       "description": "Enable WebSocket endpoint (/.json) for Pub/Sub and command execution.",
@@ -123,14 +114,6 @@
       "minimum": 1,
       "default": 134217728
     },
-    "user": {
-      "type": "string",
-      "description": "Drop privileges to this Unix user before serving requests."
-    },
-    "group": {
-      "type": "string",
-      "description": "Drop privileges to this Unix group before serving requests."
-    },
     "default_root": {
       "type": "string",
       "description": "Redis command executed when the root path (/) is requested, e.g. /GET/index.html."
@@ -140,13 +123,6 @@
       "description": "Logging verbosity level (0=errors only, 4=debug, >=5 trace).",
       "minimum": 0,
       "default": 4
-    },
-    "logfile": {
-      "type": "string",
-      "description": "Path to the log file. When omitted logs are sent to stdout."
-    },
-    "log_fsync": {
-      "$ref": "#/$defs/logFsync"
     },
     "hiredis": {
       "type": "object",
@@ -231,24 +207,6 @@
           "description": "Override SNI hostname when negotiating TLS with Redis."
         }
       }
-    },
-    "logFsync": {
-      "description": "Controls how aggressively Webdis fsyncs its logs. \"all\" can be very expensive.",
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "auto",
-            "all"
-          ],
-          "description": "Named fsync policies (\"auto\" = no explicit fsync, \"all\" = fsync after each log write)."
-        },
-        {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Fsync interval in milliseconds (fsync at most once per interval)."
-        }
-      ]
     }
   }
 }

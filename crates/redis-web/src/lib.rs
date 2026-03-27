@@ -8,7 +8,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::process;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 const HTTP_APP_NAME: &str = "redis-web";
@@ -51,7 +51,6 @@ pub fn run(kind: InvocationKind) {
         process::exit(1);
     }
 
-    configure_process(&config);
     start_http_runtime(config);
 }
 
@@ -73,7 +72,6 @@ pub fn run_grpc(kind: InvocationKind) {
         process::exit(1);
     }
 
-    configure_process(&config);
     start_grpc_runtime(config);
 }
 
@@ -177,10 +175,6 @@ fn init_logging(config: &Config, config_path: &str, app_name: &str) {
     );
 }
 
-fn configure_process(config: &Config) {
-    warn_ignored_process_manager_settings(&config);
-}
-
 fn start_http_runtime(config: Config) {
     info!("Building Tokio runtime");
     let mut runtime = tokio::runtime::Builder::new_multi_thread();
@@ -239,36 +233,6 @@ async fn async_main_grpc(config: Config) {
     if let Err(error) = grpc::serve(&config, components.app_state).await {
         error!("Failed to serve gRPC traffic: {}", error);
         process::exit(1);
-    }
-}
-
-fn warn_ignored_process_manager_settings(config: &Config) {
-    let mut ignored = Vec::new();
-
-    if config.daemonize {
-        ignored.push("daemonize");
-    }
-    if config.pidfile.is_some() {
-        ignored.push("pidfile");
-    }
-    if config.user.is_some() {
-        ignored.push("user");
-    }
-    if config.group.is_some() {
-        ignored.push("group");
-    }
-    if config.logfile.is_some() {
-        ignored.push("logfile");
-    }
-    if config.log_fsync.is_some() {
-        ignored.push("log_fsync");
-    }
-
-    if !ignored.is_empty() {
-        warn!(
-            "Ignoring legacy process-manager settings in foreground mode: {}",
-            ignored.join(", ")
-        );
     }
 }
 

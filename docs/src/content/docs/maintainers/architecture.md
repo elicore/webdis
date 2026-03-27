@@ -19,8 +19,6 @@ migration concerns.
 The default build path targets the core server crates only. Optional surfaces
 like gRPC, hiredis ABI compatibility, and benchmark harnesses stay available as
 explicit opt-ins.
-Deprecated features and legacy compatibility knobs are tracked in
-[Deprecated Features](/maintainers/deprecations/).
 
 ## Testing and CI
 

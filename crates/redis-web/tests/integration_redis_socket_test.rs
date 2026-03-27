@@ -14,7 +14,6 @@ async fn test_unix_socket_basic_connectivity() {
         "http_port": 0,
         "database": 0,
         "websockets": false,
-        "daemonize": false,
         "verbosity": 4
     });
 
@@ -61,7 +60,6 @@ async fn test_unix_socket_precedence_over_tcp() {
         "http_port": 0,
         "database": 0,
         "websockets": false,
-        "daemonize": false,
         "verbosity": 4
     });
 

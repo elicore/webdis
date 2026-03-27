@@ -65,13 +65,13 @@ clean:
 # compat, gRPC, or performance harnesses.
 test:
 	cargo test -p redis-web --lib
-	cargo test -p redis-web --test config_test --test handler_test --test logging_fsync_test --test functional_interface_mapping_test --test functional_http_contract_test --test functional_ws_contract_test
+	cargo test -p redis-web --test config_test --test handler_test --test functional_interface_mapping_test --test functional_http_contract_test --test functional_ws_contract_test
 
 test_unit:
 	cargo test --workspace --lib
 
 test_functional:
-	cargo test -p redis-web --test config_test --test handler_test --test logging_fsync_test --test functional_interface_mapping_test --test functional_http_contract_test --test functional_ws_contract_test
+	cargo test -p redis-web --test config_test --test handler_test --test functional_interface_mapping_test --test functional_http_contract_test --test functional_ws_contract_test
 
 test_integration:
 	$(MAKE) test_integration_core

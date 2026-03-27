@@ -35,13 +35,6 @@ pub struct Config {
     pub pool_size_per_thread: Option<usize>,
     #[serde(default, rename = "pool_size", skip_serializing, alias = "pool_size")]
     legacy_pool_size_per_thread: Option<usize>,
-    /// Legacy compatibility knob. The main binary runs in the foreground
-    /// and ignores daemonization requests.
-    #[serde(default)]
-    pub daemonize: bool,
-    /// Legacy compatibility knob. Process supervisors should manage PID files
-    /// externally if they still need one.
-    pub pidfile: Option<String>,
     #[serde(default)]
     pub websockets: bool,
     pub ssl: Option<SslConfig>,
@@ -60,18 +53,8 @@ pub struct Config {
     #[serde(default = "default_grpc")]
     pub grpc: GrpcConfig,
     pub http_max_request_size: Option<usize>,
-    /// Legacy compatibility knob. Prefer `sudo`, containers, or service
-    /// managers if you need privilege separation.
-    pub user: Option<String>,
-    /// Legacy compatibility knob. Prefer `sudo`, containers, or service
-    /// managers if you need privilege separation.
-    pub group: Option<String>,
     pub default_root: Option<String>,
     pub verbosity: Option<usize>,
-    /// Legacy compatibility knob. The main binary logs to stderr.
-    pub logfile: Option<String>,
-    /// Legacy compatibility knob. Prefer external log rotation/supervision.
-    pub log_fsync: Option<LogFsync>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Default, PartialEq, Eq)]
@@ -107,20 +90,6 @@ impl Default for GrpcConfig {
             max_encoding_message_size: None,
         }
     }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(untagged)]
-pub enum LogFsync {
-    Mode(LogFsyncMode),
-    Millis(u64),
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum LogFsyncMode {
-    Auto,
-    All,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -319,8 +288,6 @@ impl Default for Config {
             database: DEFAULT_DATABASE,
             pool_size_per_thread: Some(DEFAULT_POOL_SIZE_PER_THREAD),
             legacy_pool_size_per_thread: None,
-            daemonize: false,
-            pidfile: None,
             websockets: false,
             ssl: None,
             acl: None,
@@ -329,12 +296,8 @@ impl Default for Config {
             compat_hiredis: None,
             grpc: default_grpc(),
             http_max_request_size: Some(DEFAULT_HTTP_MAX_REQUEST_SIZE),
-            user: None,
-            group: None,
             default_root: None,
             verbosity: Some(DEFAULT_VERBOSITY),
-            logfile: None,
-            log_fsync: None,
         }
     }
 }
@@ -408,7 +371,6 @@ fn decorate_config_map(
 ) -> Map<String, Value> {
     map.insert("$schema".to_string(), Value::String(schema_ref.to_string()));
     map.retain(|_, v| !v.is_null());
-    prune_legacy_process_manager_keys(&mut map);
 
     let mut ordered = Map::new();
     let mut remaining: BTreeMap<String, Value> = map.into_iter().collect();
@@ -424,19 +386,6 @@ fn decorate_config_map(
     }
 
     ordered
-}
-
-fn prune_legacy_process_manager_keys(map: &mut Map<String, Value>) {
-    for key in [
-        "daemonize",
-        "pidfile",
-        "user",
-        "group",
-        "logfile",
-        "log_fsync",
-    ] {
-        map.remove(key);
-    }
 }
 
 /// A JSON path used for error reporting when expanding `$VARNAME` placeholders.
